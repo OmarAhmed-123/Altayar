@@ -588,19 +588,9 @@ try {
   console.warn(`⚠️ [Routes] Server will continue but some routes may not work`);
 }
 
-// CRITICAL FIX: Start server listening AFTER routes are loaded
-// This ensures all routes are available immediately when server starts
-server.listen(PORT, HOST, () => {
-  // CRITICAL: Log immediately to show server is listening (required for Cloud Run health checks)
-  console.log(`========================================`);
-  console.log(`✅ Server is listening on port ${PORT}`);
-  console.log(`✅ Health check available at http://${HOST}:${PORT}/api/health`);
-  console.log(`✅ Server running in ${process.env.NODE_ENV || 'development'} mode`);
-  console.log(`========================================`);
-
-  // CRITICAL FIX: Routes are already loaded before server.listen() (see above)
-  // This ensures server is ready for Cloud Run health checks immediately
-});
+// NOTE: server.listen() has been moved to the END of the file
+// This ensures ALL middleware and routes are registered before accepting requests
+// See the bottom of this file for server.listen()
 
 // CRITICAL FIX: Set server timeout to prevent Network Error
 // Network Error occurs when request takes too long
@@ -1553,3 +1543,19 @@ setTimeout(async () => {
     }
   }
 }, 2000); // Check database status after 2 seconds
+
+// ============================================
+// CRITICAL: server.listen() MUST BE AT THE END
+// ============================================
+// This ensures ALL middleware, routes, and error handlers are registered
+// BEFORE the server starts accepting requests.
+// If server.listen() is called before middleware is registered,
+// requests will get 404 errors because routes don't exist yet.
+server.listen(PORT, HOST, () => {
+  console.log(`========================================`);
+  console.log(`✅ Server is listening on port ${PORT}`);
+  console.log(`✅ Health check available at http://${HOST}:${PORT}/api/health`);
+  console.log(`✅ Server running in ${process.env.NODE_ENV || 'development'} mode`);
+  console.log(`✅ All middleware and routes are registered`);
+  console.log(`========================================`);
+});
