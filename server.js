@@ -441,7 +441,29 @@ app.options('*', cors(corsOptions), (req, res) => {
   res.sendStatus(204);
 });
 
-// CRITICAL FIX: Load routes AFTER CORS middleware
+// CRITICAL FIX: Body parser middleware MUST be BEFORE routes
+// This ensures req.body is parsed correctly for all POST/PUT requests
+// Without this, req.body will be undefined and destructuring will fail
+app.use(express.json({
+  limit: '100mb',
+  verify: (req, res, buf) => {
+    // Log large requests for debugging
+    if (buf.length > 1024 * 1024) { // > 1MB
+      console.log('📦 [LARGE REQUEST]', {
+        size: `${(buf.length / 1024 / 1024).toFixed(2)}MB`,
+        path: req.path,
+        method: req.method
+      });
+    }
+  }
+}));
+
+app.use(express.urlencoded({
+  extended: true,
+  limit: '100mb'
+}));
+
+// CRITICAL FIX: Load routes AFTER CORS middleware AND body parser
 // This ensures all routes are available immediately when server starts
 // Routes must be loaded synchronously to ensure they're registered before first request
 console.log('🔄 [Routes] Loading all routes...');
@@ -679,48 +701,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// CRITICAL: Increase body size limit for file uploads (100MB max file size)
-// Note: express.json and express.urlencoded don't handle multipart/form-data
-// That's handled by multer middleware
-// CRITICAL FIX: Skip body parsing for multipart/form-data to let multer handle it
-app.use((req, res, next) => {
-  // Skip body parsing for multipart/form-data (file uploads)
-  // Multer will handle the parsing
-  const contentType = req.headers['content-type'] || '';
-  if (contentType.includes('multipart/form-data')) {
-    // Skip body parsing for file uploads - multer will handle it
-    return next();
-  }
-  // For other content types, use JSON body parser
-  express.json({
-    limit: '100mb',
-    verify: (req, res, buf) => {
-      // Log large requests for debugging
-      if (buf.length > 1024 * 1024) { // > 1MB
-        console.log('📦 [LARGE REQUEST]', {
-          size: `${(buf.length / 1024 / 1024).toFixed(2)}MB`,
-          path: req.path,
-          method: req.method
-        });
-      }
-    }
-  })(req, res, next);
-});
-
-app.use((req, res, next) => {
-  // Skip body parsing for multipart/form-data (file uploads)
-  const contentType = req.headers['content-type'] || '';
-  if (contentType.includes('multipart/form-data')) {
-    // Skip body parsing for file uploads - multer will handle it
-    return next();
-  }
-  // For other content types, use urlencoded parser
-  express.urlencoded({
-    extended: true,
-    limit: '100mb',
-    parameterLimit: 50000 // Increase parameter limit for large forms
-  })(req, res, next);
-});
+// NOTE: Body parser middleware (express.json, express.urlencoded) is now at the TOP
+// before routes, which is the correct location. See lines 444-462.
+// Multer handles multipart/form-data for file uploads in each route as needed.
 
 // CRITICAL FIX: CORS middleware is already applied above (before routes)
 // This duplicate CORS configuration was removed to prevent conflicts
