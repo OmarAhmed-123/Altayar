@@ -541,10 +541,7 @@ try {
   app.use('/api/deep-links', require('./routes/deepLinks'));
   app.use('/api/invoices', require('./routes/invoices'));
 
-  // Error handling middleware
-  const { notFound, errorHandler } = require('./middleware/errorMiddleware');
-  app.use(notFound);
-  app.use(errorHandler);
+  // Error handling middleware moved to the end of file after all routes
 
   // Make io globally available for use in controllers (chat, notifications, etc.)
   global.io = io;
@@ -1513,6 +1510,12 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+
+// Error handling middleware - CRITICAL: Must be last
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+app.use(notFound);
+app.use(errorHandler);
 
 
 // CRITICAL FIX: Routes are already loaded before server.listen() (see above)
