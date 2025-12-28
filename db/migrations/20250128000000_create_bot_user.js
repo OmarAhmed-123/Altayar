@@ -6,6 +6,14 @@
 const bcrypt = require('bcryptjs');
 
 exports.up = async function(knex) {
+  // Check if users table exists
+  const hasUsersTable = await knex.schema.hasTable('users');
+  if (!hasUsersTable) {
+    console.warn('⚠️  [Migration] users table does not exist. Skipping bot user creation.');
+    console.warn('💡 [Migration] This migration will be applied when users table is created.');
+    return;
+  }
+  
   // Check if bot user already exists
   const existingBot = await knex('users')
     .where('email', 'bot@altayar.com')

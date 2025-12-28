@@ -4,6 +4,13 @@
  */
 
 exports.up = async function(knex) {
+  // Check if messages table exists
+  const hasTable = await knex.schema.hasTable('messages');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] messages table does not exist. Skipping enhancement.');
+    return;
+  }
+  
   // Check if columns exist before adding
   const hasIsDeleted = await knex.schema.hasColumn('messages', 'is_deleted');
   const hasAttachmentSize = await knex.schema.hasColumn('messages', 'attachment_size');
@@ -21,12 +28,22 @@ exports.up = async function(knex) {
   }
 };
 
-exports.down = function(knex) {
+exports.down = async function(knex) {
+  const hasTable = await knex.schema.hasTable('messages');
+  if (!hasTable) {
+    return; // Table doesn't exist, nothing to rollback
+  }
+  
+  const hasIsDeleted = await knex.schema.hasColumn('messages', 'is_deleted');
+  const hasAttachmentSize = await knex.schema.hasColumn('messages', 'attachment_size');
+  
+  if (!hasIsDeleted && !hasAttachmentSize) {
+    return; // Columns don't exist, nothing to rollback
+  }
+  
   return knex.schema.alterTable('messages', function(table) {
-    table.dropColumn('is_deleted');
-    table.dropColumn('attachment_size');
-  }).catch(() => {
-    // Ignore if columns don't exist
+    if (hasIsDeleted) table.dropColumn('is_deleted');
+    if (hasAttachmentSize) table.dropColumn('attachment_size');
   });
 };
 

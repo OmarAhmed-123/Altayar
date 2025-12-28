@@ -1,0 +1,154 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore
+
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+
+# Scripts (not needed in container)
+*.ps1
+*.bat
+*.sh
+*.yaml
+!cloudbuild.yaml
+!Dockerfile
+!knexfile.js
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+coverage/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts (will be rebuilt)
+dist/
+build/
+.next/
+out/
+
+# Database files
+*.sql
+*.db
+*.sqlite
+
+# Docker files (not needed in build context)
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# Cloud Build files (keep cloudbuild.yaml - needed for build)
+.gcloudignore
+# Keep cloudbuild.yaml - it's needed!
+
+# Migration files (keep these - needed for migrations)
+# migrations/ - KEEP THIS
+
+# Other
+.cache/
+.npm/
+.yarn/
+
+# Uploads directory (may contain large files)
+uploads/*
+!uploads/.gitkeep
+
+# Memberships directory (may contain large files)
+memberships/*
+!memberships/.gitkeep
+
+# Assets directory (may contain large files)
+assets/*
+!assets/.gitkeep
+
+# All markdown documentation files
+*.md
+!README.md
+
+# All documentation and guide files
+*_GUIDE.md
+*_FIX.md
+*_SOLUTION.md
+*_COMPLETE.md
+*_FINAL.md
+*_README.md
+START_*.md
+FIX_*.md
+QUICK_*.md
+COMPLETE_*.md
+FINAL_*.md
+ALL_*.md
+HOW_TO_*.md
+DEPLOYMENT_*.md
+CLOUD_*.md
+DATABASE_*.md
+MIGRATION_*.md
+PORT_*.md
+RESTART_*.md
+REGISTRATION_*.md
+DOCKER_*.md
+BILLING_*.md
+RAILWAY_*.md
+RENDER_*.md
+FIREBASE_*.md
+PDF_*.md
+MEMBERSHIP_*.md
+INVOICE_*.md
+CLIENT_*.md
+ASYNC_*.md
+BEST_*.md
+FREE_*.md
+PROJECT_*.md
+SERVICE_*.md
+SCRIPT_*.md
+SHOW_*.md
+SWITCH_*.md
+UPDATE_*.md
+VERIFY_*.md
+VIEW_*.md
+CREATE_*.md
+ENABLE_*.md
+INSTALL_*.md
+LINK_*.md
+RESET_*.md
+RUN_*.md
+SETUP_*.md
+SYNC_*.md
+TEST_*.md
+*.md

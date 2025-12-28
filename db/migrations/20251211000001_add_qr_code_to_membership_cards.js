@@ -4,6 +4,13 @@
  */
 
 exports.up = async function(knex) {
+  // Check if membership_cards table exists
+  const hasTable = await knex.schema.hasTable('membership_cards');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] membership_cards table does not exist. Skipping qr_code column addition.');
+    return;
+  }
+  
   // Check if column already exists
   const hasQrCode = await knex.schema.hasColumn('membership_cards', 'qr_code');
   

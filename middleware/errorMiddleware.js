@@ -19,7 +19,21 @@ const notFound = (req, res, next) => {
   }
   
   // For legitimate API requests, provide helpful error message
-  const error = new Error(`Not Found - ${req.originalUrl}`);
+  // CRITICAL: Log 404 errors to help debug route registration issues
+  console.warn('⚠️ [404] Route not found:', {
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    baseUrl: req.baseUrl,
+    query: req.query,
+    headers: {
+      origin: req.headers.origin,
+      'user-agent': req.headers['user-agent']?.substring(0, 50),
+    },
+    timestamp: new Date().toISOString()
+  });
+  
+  const error = new Error(`Not Found - ${req.method} ${req.originalUrl}`);
   res.status(404);
   next(error);
 };

@@ -5,6 +5,13 @@
  */
 
 exports.up = async function(knex) {
+  // Check if memberships table exists
+  const hasTable = await knex.schema.hasTable('memberships');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] memberships table does not exist. Skipping tier column addition.');
+    return;
+  }
+  
   // Check if tier column already exists
   const hasColumn = await knex.schema.hasColumn('memberships', 'tier');
   
@@ -15,6 +22,7 @@ exports.up = async function(knex) {
   }
   
   // Update existing memberships with tier based on name if tier is null, empty, or "null"
+  // Only if table exists and has data
   const memberships = await knex('memberships')
     .whereNull('tier')
     .orWhere('tier', '')

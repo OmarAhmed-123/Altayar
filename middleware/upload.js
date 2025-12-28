@@ -518,8 +518,17 @@ exports.uploadAdImage = (req, res, next) => {
 };
 
 // Get file URL helper - ensures proper URL generation for all users
+// CRITICAL FIX: Always use production URL in production, local URL only in development
 exports.getFileUrl = (req, filename) => {
-    // Get the correct protocol and host
+    // In production, always use production Cloud Run URL
+    if (process.env.NODE_ENV === 'production') {
+        const productionUrl = process.env.BACKEND_URL || 'https://altayar-backend-kuwjte4rda-uc.a.run.app';
+        // Remove trailing slash and ensure proper format
+        const baseUrl = productionUrl.endsWith('/') ? productionUrl.slice(0, -1) : productionUrl;
+        return `${baseUrl}/uploads/reels/${filename}`;
+    }
+    
+    // In development, use request-based URL
     const protocol = req.get('X-Forwarded-Proto') || req.protocol || 'http';
     let host = req.get('host');
     

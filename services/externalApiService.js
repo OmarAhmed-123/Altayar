@@ -11,6 +11,24 @@ class ExternalApiService {
   // Initialize service with cached integrations
   async initialize() {
     try {
+      // Check if database is available before querying
+      const { db } = require('../config/db');
+      try {
+        await db.raw('SELECT 1 as test');
+      } catch (dbError) {
+        // Database not available - skip initialization
+        console.warn('⚠️  [External API] Database not available, skipping integration initialization');
+        console.warn('⚠️  [External API] External API service will work with default configurations');
+        return;
+      }
+
+      // Check if ApiIntegration table exists
+      const hasTable = await db.schema.hasTable('api_integrations');
+      if (!hasTable) {
+        console.warn('⚠️  [External API] api_integrations table not found, using default configurations');
+        return;
+      }
+
       const integrations = await ApiIntegration.query().where('is_active', true);
       this.integrations.clear();
       
@@ -18,9 +36,14 @@ class ExternalApiService {
         this.integrations.set(integration.service_name, integration);
       });
       
-      console.log(`Initialized ${integrations.length} external API integrations`);
+      console.log(`✅ [External API] Initialized ${integrations.length} external API integrations`);
     } catch (error) {
-      console.error('Failed to initialize external API service:', error);
+      // Don't fail if database is not available - service can work with defaults
+      if (error.code === 'ECONNREFUSED' || error.message.includes('refused')) {
+        console.warn('⚠️  [External API] Database not available, using default configurations');
+      } else {
+        console.error('⚠️  [External API] Failed to initialize external API service:', error.message);
+      }
     }
   }
 
@@ -526,7 +549,15 @@ class ExternalApiService {
 // Create singleton instance
 const externalApiService = new ExternalApiService();
 
-// Initialize on startup
-externalApiService.initialize().catch(console.error);
+// Initialize on startup (with delay to allow database connection)
+// This prevents blocking server startup if database is not available
+setTimeout(() => {
+  externalApiService.initialize().catch((error) => {
+    // Only log if it's not a connection error (which is expected in development)
+    if (error.code !== 'ECONNREFUSED' && !error.message.includes('refused')) {
+      console.error('⚠️  [External API] Initialization error:', error.message);
+    }
+  });
+}, 2000); // Wait 2 seconds for database connection to establish
 
 module.exports = externalApiService;

@@ -9,6 +9,14 @@ const fs = require('fs').promises;
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const {
+  registerCairoFonts,
+  formatTextForPDF,
+  drawText,
+  drawBoldText,
+  cleanText,
+  isArabic,
+} = require('./pdfFontHelper');
 
 /**
  * Helper function to format dates in both Arabic and English
@@ -118,6 +126,10 @@ async function generateMembershipCardPDF(membershipData, userData) {
         }
       });
 
+      // Register Cairo fonts for Arabic support
+      const { cairoRegular, cairoBold } = await registerCairoFonts(doc);
+      const hasCairo = !!(cairoRegular && cairoBold);
+
       const buffers = [];
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => {
@@ -190,17 +202,31 @@ async function generateMembershipCardPDF(membershipData, userData) {
       // For full Arabic support, you'd need to use a library like pdfmake or register Arabic fonts
       
       // ========== MEMBERSHIP TYPE ==========
-      // CRITICAL: Translate membership name to English for clarity
+      // CRITICAL: Use Arabic text directly if Cairo fonts are available
       const membershipName = membershipData.name || 'Premium Membership';
-      const translatedMembershipName = await translateToEnglish(membershipName);
+      const membershipNameFormatted = formatTextForPDF(membershipName, hasCairo);
+      
+      // Use original Arabic text if Cairo is available, otherwise try translation
+      let displayMembershipName = membershipName;
+      if (!hasCairo && membershipNameFormatted.isArabic) {
+        // Only translate if Cairo is not available
+        displayMembershipName = await translateToEnglish(membershipName);
+      } else {
+        displayMembershipName = cleanText(membershipName);
+      }
+      
+      // Use appropriate font
+      const membershipFont = hasCairo && membershipNameFormatted.isArabic
+        ? membershipNameFormatted.boldFont
+        : 'Helvetica-Bold';
       
       const membershipY = 110;
       doc.fillColor('#1a4d8c')
         .fontSize(22)
-        .font('Helvetica-Bold')
-        .text(translatedMembershipName, 50, membershipY, {
+        .font(membershipFont)
+        .text(displayMembershipName, 50, membershipY, {
           width: cardWidth - 100,
-          align: 'center'
+          align: membershipNameFormatted.alignment || 'left'
         });
 
       // ========== MEMBER INFORMATION SECTION ==========
@@ -210,16 +236,31 @@ async function generateMembershipCardPDF(membershipData, userData) {
       const labelWidth = 200;
       const valueWidth = cardWidth - 270;
 
-      // Name - Clear and readable
+      // Name - Clear and readable with RTL support
       doc.fillColor('#333333')
         .fontSize(11)
         .font('Helvetica')
         .text('Name:', 50, currentY, { width: labelWidth });
       
+      const userName = userData.name || 
+        (userData.first_name && userData.last_name ? `${userData.first_name} ${userData.last_name}` : '') ||
+        userData.first_name || 
+        userData.last_name || 
+        'Member Name';
+      const userNameFormatted = formatTextForPDF(userName, hasCairo);
+      
+      // Use Cairo font if available and text is Arabic, otherwise use appropriate font
+      const nameFont = hasCairo && userNameFormatted.isArabic 
+        ? userNameFormatted.boldFont 
+        : (userNameFormatted.isArabic ? 'Helvetica-Bold' : 'Helvetica-Bold');
+      
       doc.fillColor('#000000')
         .fontSize(15)
-        .font('Helvetica-Bold')
-        .text(userData.name || 'Member Name', 260, currentY, { width: valueWidth });
+        .font(nameFont)
+        .text(userNameFormatted.text, 260, currentY, { 
+          width: valueWidth,
+          align: userNameFormatted.alignment || 'left'
+        });
       
       currentY += lineHeight;
 
@@ -229,10 +270,21 @@ async function generateMembershipCardPDF(membershipData, userData) {
         .font('Helvetica')
         .text('Email:', 50, currentY, { width: labelWidth });
       
+      const userEmail = userData.email || 'email@example.com';
+      const emailFormatted = formatTextForPDF(userEmail, hasCairo);
+      
+      // Use Cairo font if available and text is Arabic, otherwise use Helvetica
+      const emailFont = hasCairo && emailFormatted.isArabic 
+        ? emailFormatted.font 
+        : 'Helvetica';
+      
       doc.fillColor('#000000')
         .fontSize(12)
-        .font('Helvetica')
-        .text(userData.email || 'email@example.com', 260, currentY, { width: valueWidth });
+        .font(emailFont)
+        .text(emailFormatted.text, 260, currentY, { 
+          width: valueWidth,
+          align: emailFormatted.alignment || 'left'
+        });
       
       currentY += lineHeight;
 

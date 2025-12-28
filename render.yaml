@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: altayar-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+    healthCheckPath: /api/health
+
+databases:
+  - name: altayar-db
+    plan: free
+    databaseName: tourist_app_db
+    user: altayar_user
+

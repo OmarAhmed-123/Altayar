@@ -112,20 +112,66 @@ async function findMembershipPDF(membershipName, membershipTier = null) {
       const files = await fs.readdir(membershipsDir);
       const searchTerms = [normalizedTier, normalizedName].filter(Boolean);
       
+      // Enhanced matching: try multiple patterns
       for (const term of searchTerms) {
         if (!term) continue;
         
+        // Try to find matching file with multiple strategies
         const matchingFile = files.find(file => {
+          if (!file.endsWith('.pdf')) return false;
+          
           const fileLower = file.toLowerCase();
-          // Check if file name contains the search term
-          return fileLower.includes(term) || term.includes(fileLower.split('_')[0].toLowerCase());
+          const filePrefix = file.split('_')[0].toLowerCase();
+          
+          // Strategy 3a: Exact prefix match
+          if (filePrefix === term) return true;
+          
+          // Strategy 3b: File contains term
+          if (fileLower.includes(term)) return true;
+          
+          // Strategy 3c: Term contains file prefix
+          if (term.includes(filePrefix)) return true;
+          
+          // Strategy 3d: Check against MEMBERSHIP_PDF_MAP
+          for (const [key, prefix] of Object.entries(MEMBERSHIP_PDF_MAP)) {
+            if (filePrefix === prefix.toLowerCase() && term === key) {
+              return true;
+            }
+          }
+          
+          return false;
         });
         
-        if (matchingFile && matchingFile.endsWith('.pdf')) {
+        if (matchingFile) {
           // Extract prefix from filename (e.g., "BusinessMembership_251209_034310.pdf" -> "BusinessMembership")
           pdfPrefix = matchingFile.split('_')[0];
           console.log(`✅ [Membership PDF] Found match by file search: ${matchingFile} -> ${pdfPrefix}`);
           break;
+        }
+      }
+      
+      // Strategy 4: If still not found, try direct file listing and match by tier/name
+      if (!pdfPrefix && files.length > 0) {
+        // List all PDF files and try to match
+        const pdfFiles = files.filter(f => f.endsWith('.pdf'));
+        console.log(`🔍 [Membership PDF] Available PDF files: ${pdfFiles.join(', ')}`);
+        
+        // Try to match by checking if any file prefix matches our search terms
+        for (const pdfFile of pdfFiles) {
+          const filePrefix = pdfFile.split('_')[0].toLowerCase();
+          
+          // Check if this file matches our tier or name
+          if (normalizedTier && filePrefix.includes(normalizedTier)) {
+            pdfPrefix = pdfFile.split('_')[0];
+            console.log(`✅ [Membership PDF] Found match by tier in filename: ${pdfFile} -> ${pdfPrefix}`);
+            break;
+          }
+          
+          if (normalizedName && filePrefix.includes(normalizedName)) {
+            pdfPrefix = pdfFile.split('_')[0];
+            console.log(`✅ [Membership PDF] Found match by name in filename: ${pdfFile} -> ${pdfPrefix}`);
+            break;
+          }
         }
       }
     } catch (error) {
@@ -141,16 +187,40 @@ async function findMembershipPDF(membershipName, membershipTier = null) {
   // Find the actual PDF file (with timestamp suffix)
   try {
     const files = await fs.readdir(membershipsDir);
-    const pdfFile = files.find(file => 
+    const pdfFiles = files.filter(file => file.endsWith('.pdf'));
+    
+    console.log(`🔍 [Membership PDF] Searching for PDF with prefix: "${pdfPrefix}"`);
+    console.log(`🔍 [Membership PDF] Available PDF files: ${pdfFiles.join(', ')}`);
+    
+    // Try exact prefix match first
+    let pdfFile = pdfFiles.find(file => 
       file.startsWith(pdfPrefix) && file.endsWith('.pdf')
     );
+    
+    // If not found, try case-insensitive match
+    if (!pdfFile) {
+      pdfFile = pdfFiles.find(file => 
+        file.toLowerCase().startsWith(pdfPrefix.toLowerCase()) && file.endsWith('.pdf')
+      );
+    }
+    
+    // If still not found, try partial match (for cases like "Gold" matching "GoldMembership")
+    if (!pdfFile && pdfPrefix) {
+      const prefixLower = pdfPrefix.toLowerCase();
+      pdfFile = pdfFiles.find(file => {
+        const filePrefix = file.split('_')[0].toLowerCase();
+        return filePrefix.includes(prefixLower) || prefixLower.includes(filePrefix);
+      });
+    }
     
     if (pdfFile) {
       const fullPath = path.join(membershipsDir, pdfFile);
       console.log(`✅ [Membership PDF] Found PDF file: ${pdfFile}`);
+      console.log(`✅ [Membership PDF] Full path: ${fullPath}`);
       return fullPath;
     } else {
-      console.warn(`⚠️ [Membership PDF] Prefix "${pdfPrefix}" found but no PDF file exists`);
+      console.warn(`⚠️ [Membership PDF] Prefix "${pdfPrefix}" found but no matching PDF file exists`);
+      console.warn(`⚠️ [Membership PDF] Available files: ${pdfFiles.join(', ')}`);
     }
   } catch (error) {
     console.error('❌ [Membership PDF] Error finding PDF file:', error);

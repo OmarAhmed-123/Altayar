@@ -1,4 +1,19 @@
-exports.up = function(knex) {
+exports.up = async function(knex) {
+  // Check if users table exists
+  const hasUsersTable = await knex.schema.hasTable('users');
+  const hasDownloadTrackingTable = await knex.schema.hasTable('download_tracking');
+  
+  if (hasDownloadTrackingTable) {
+    console.log('✅ [Migration] download_tracking table already exists.');
+    return;
+  }
+  
+  if (!hasUsersTable) {
+    console.warn('⚠️  [Migration] users table does not exist. Skipping download_tracking table creation.');
+    console.warn('💡 [Migration] This migration will be applied when users table is created.');
+    return;
+  }
+  
   return knex.schema.createTable('download_tracking', table => {
     table.increments('id').primary();
     table.integer('user_id').unsigned().notNullable().references('id').inTable('users').onDelete('CASCADE');

@@ -1,13 +1,25 @@
-exports.up = function(knex) {
+exports.up = async function(knex) {
+  const hasTable = await knex.schema.hasTable('automated_triggers');
+  if (hasTable) {
+    console.log('✅ [Migration] automated_triggers table already exists, skipping creation');
+    return;
+  }
+  
+  const hasUsersTable = await knex.schema.hasTable('users');
+  
   return knex.schema.createTable('automated_triggers', table => {
     table.increments('id').primary();
     table.string('name').notNullable();
     table.text('description');
-    table.string('event_type').notNullable(); // e.g., 'user_registered', 'booking_completed', 'birthday', 'inactivity'
-    table.jsonb('conditions').defaultTo('{}'); // JSON object for trigger conditions
-    table.jsonb('actions').defaultTo('{}'); // JSON object for actions (e.g., send email, create voucher)
+    table.string('event_type').notNullable();
+    table.jsonb('conditions').defaultTo('{}');
+    table.jsonb('actions').defaultTo('{}');
     table.boolean('is_active').defaultTo(true);
-    table.integer('created_by').unsigned().references('id').inTable('users').onDelete('SET NULL');
+    if (hasUsersTable) {
+      table.integer('created_by').unsigned().references('id').inTable('users').onDelete('SET NULL');
+    } else {
+      table.integer('created_by').unsigned().nullable();
+    }
     table.timestamps(true, true);
   });
 };

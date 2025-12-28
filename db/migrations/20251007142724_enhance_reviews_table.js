@@ -1,4 +1,18 @@
-exports.up = function(knex) {
+exports.up = async function(knex) {
+  // Check if reviews table exists
+  const hasTable = await knex.schema.hasTable('reviews');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] reviews table does not exist. Skipping enhancement.');
+    return;
+  }
+  
+  // Check if columns already exist (check first column as indicator)
+  const hasImages = await knex.schema.hasColumn('reviews', 'images');
+  if (hasImages) {
+    console.log('✅ [Migration] Enhanced fields already exist in reviews table.');
+    return;
+  }
+  
   return knex.schema.alterTable('reviews', table => {
     table.jsonb('images').defaultTo('[]'); // Array of image URLs
     table.jsonb('tags').defaultTo('[]'); // Array of tags/keywords
@@ -12,7 +26,17 @@ exports.up = function(knex) {
   });
 };
 
-exports.down = function(knex) {
+exports.down = async function(knex) {
+  const hasTable = await knex.schema.hasTable('reviews');
+  if (!hasTable) {
+    return; // Table doesn't exist, nothing to rollback
+  }
+  
+  const hasImages = await knex.schema.hasColumn('reviews', 'images');
+  if (!hasImages) {
+    return; // Columns don't exist, nothing to rollback
+  }
+  
   return knex.schema.alterTable('reviews', table => {
     table.dropColumn('images');
     table.dropColumn('tags');

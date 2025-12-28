@@ -4,6 +4,13 @@
  */
 
 exports.up = async function(knex) {
+  // Check if memberships table exists
+  const hasTable = await knex.schema.hasTable('memberships');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] memberships table does not exist. Skipping extended fields addition.');
+    return;
+  }
+  
   // Check if columns already exist before adding
   const hasPointMultiplier = await knex.schema.hasColumn('memberships', 'point_multiplier');
   const hasCashbackRate = await knex.schema.hasColumn('memberships', 'cashback_rate');

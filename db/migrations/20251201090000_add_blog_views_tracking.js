@@ -5,6 +5,13 @@
  */
 
 exports.up = async function up(knex) {
+  // Check if blogs table exists
+  const hasBlogsTable = await knex.schema.hasTable('blogs');
+  if (!hasBlogsTable) {
+    console.warn('⚠️  [Migration] blogs table does not exist. Skipping blog views tracking.');
+    return;
+  }
+  
   const hasViewsColumn = await knex.schema.hasColumn('blogs', 'views_count');
   const hasDestinationColumn = await knex.schema.hasColumn('blogs', 'destination');
   const hasTagsColumn = await knex.schema.hasColumn('blogs', 'tags');

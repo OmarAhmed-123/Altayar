@@ -1,27 +1,58 @@
-# Node/Build
+# Dependencies
 node_modules/
 npm-debug.log*
+yarn-debug.log*
 yarn-error.log*
-dist/
-build/
-coverage/
-*.tsbuildinfo
 
-# Environment
-.env*
-
-# Uploads & generated assets
-uploads/
-temp/
-memberships/
-
-# OS / IDE
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
 
 # Logs
-logs/
+logs
 *.log
 
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build
+dist/
+build/
+
+# Uploads (keep structure but ignore files)
+uploads/*
+!uploads/.gitkeep
+!uploads/**/.gitkeep
+
+# Memberships (keep structure but ignore files)
+memberships/*
+!memberships/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Database
+*.sqlite
+*.db
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Railway
+.railway/
+
+# Render
+.render/

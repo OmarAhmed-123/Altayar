@@ -6,6 +6,14 @@
 
 const PDFDocument = require('pdfkit');
 const path = require('path');
+const {
+  registerCairoFonts,
+  formatTextForPDF,
+  drawText,
+  drawBoldText,
+  cleanText,
+  isArabic,
+} = require('./pdfFontHelper');
 
 // Try to use Google Translate API if available, otherwise fallback to dictionary
 let translate = null;
@@ -251,15 +259,6 @@ async function translateToEnglish(text) {
 }
 
 /**
- * Helper function to detect if text contains Arabic characters
- */
-function isArabic(text) {
-  if (!text || typeof text !== 'string') return false;
-  // Arabic Unicode range: \u0600-\u06FF
-  return /[\u0600-\u06FF]/.test(text);
-}
-
-/**
  * Helper function to safely get text value
  */
 function safeText(value, defaultValue = 'N/A') {
@@ -332,11 +331,15 @@ async function generateInvoicePDF(invoiceData) {
         margins: { top: 50, bottom: 50, left: 50, right: 50 },
         info: {
           Title: `Invoice ${invoiceData.invoiceNumber}`,
-          Author: 'ALTAYARVIP',
+          Author: 'ALTAYAR VIP',
           Subject: 'Invoice',
-          Creator: 'ALTAYARVIP System',
+          Creator: 'ALTAYAR VIP System',
         }
       });
+
+      // Register Cairo fonts for Arabic support
+      const { cairoRegular, cairoBold } = await registerCairoFonts(doc);
+      const hasCairo = !!(cairoRegular && cairoBold);
 
       const buffers = [];
       doc.on('data', buffers.push.bind(buffers));
@@ -396,10 +399,13 @@ async function generateInvoicePDF(invoiceData) {
 
       // Use translated name if available, otherwise original
       const userName = translations.userName || safeText(invoiceData.user?.name, 'Customer');
+      const userNameFormatted = formatTextForPDF(userName, hasCairo);
       doc.fontSize(11)
-        .font('Helvetica')
+        .font(userNameFormatted.font)
         .fillColor('#000000')
-        .text(userName, 50, yPos);
+        .text(userNameFormatted.text, 50, yPos, {
+          align: userNameFormatted.alignment
+        });
       yPos += 15;
 
       if (invoiceData.user?.email) {
@@ -497,18 +503,26 @@ async function generateInvoicePDF(invoiceData) {
           const serviceName = safeText(service.name);
           const serviceDesc = service.description ? safeText(service.description) : '';
 
-          // Service name
+          // Service name with RTL support
+          const serviceNameFormatted = formatTextForPDF(serviceName, hasCairo);
           doc.fontSize(10)
-            .font('Helvetica')
+            .font(serviceNameFormatted.font)
             .fillColor('#000000')
-            .text(serviceName, 50, yPos, { width: 280 });
+            .text(serviceNameFormatted.text, 50, yPos, { 
+              width: 280,
+              align: serviceNameFormatted.alignment
+            });
 
-          // Service description - directly under the name
+          // Service description - directly under the name with RTL support
           if (serviceDesc) {
+            const serviceDescFormatted = formatTextForPDF(serviceDesc, hasCairo);
             doc.fontSize(9)
-              .font('Helvetica')
+              .font(serviceDescFormatted.font)
               .fillColor('#666666')
-              .text(serviceDesc, 50, yPos + 12, { width: 280 });
+              .text(serviceDescFormatted.text, 50, yPos + 12, { 
+                width: 280,
+                align: serviceDescFormatted.alignment
+              });
           }
 
           const quantity = service.quantity || 1;

@@ -1,4 +1,20 @@
-exports.up = function(knex) {
+exports.up = async function(knex) {
+  // Check if required tables exist
+  const hasUsersTable = await knex.schema.hasTable('users');
+  const hasMembershipsTable = await knex.schema.hasTable('memberships');
+  const hasMembershipCardsTable = await knex.schema.hasTable('membership_cards');
+  
+  if (hasMembershipCardsTable) {
+    console.log('✅ [Migration] membership_cards table already exists.');
+    return;
+  }
+  
+  if (!hasUsersTable || !hasMembershipsTable) {
+    console.warn('⚠️  [Migration] Required tables (users, memberships) do not exist. Skipping membership_cards table creation.');
+    console.warn('💡 [Migration] This migration will be applied when required tables are created.');
+    return;
+  }
+  
   return knex.schema.createTable('membership_cards', table => {
     table.increments('id').primary();
     table.integer('user_id').unsigned().notNullable().references('id').inTable('users').onDelete('CASCADE');

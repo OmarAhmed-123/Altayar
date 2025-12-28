@@ -14,6 +14,12 @@ const Booking = require('../models/Booking');
 const Trip = require('../models/Trip');
 const Transaction = require('../models/Transaction');
 const Membership = require('../models/Membership');
+const {
+  registerCairoFonts,
+  formatTextForPDF,
+  cleanText,
+  isArabic,
+} = require('../utils/pdfFontHelper');
 
 /**
  * CRITICAL: Translate Arabic text to English using Google Translate API
@@ -202,24 +208,29 @@ exports.generateUserReportPDF = asyncHandler(async (req, res) => {
 
     // Create PDF document with error handling
     let doc;
+    let hasCairo = false;
     try {
-      // CRITICAL FIX: Use only built-in PDF fonts to avoid TTF font errors
-      // Built-in fonts: Helvetica, Helvetica-Bold, Helvetica-Oblique, Helvetica-BoldOblique
-      // Times-Roman, Times-Bold, Times-Italic, Times-BoldItalic
-      // Courier, Courier-Bold, Courier-Oblique, Courier-BoldOblique
       doc = new PDFDocument({
         size: 'A4',
         margin: 50,
         info: {
           Title: `User Report - ${user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User'}`,
-          Author: 'Altayar Tourism App',
+          Author: 'ALTAYAR VIP',
           Subject: 'User Activity Report',
-          Creator: 'Altayar Backend System',
+          Creator: 'ALTAYAR VIP System',
         },
-        // CRITICAL: Don't register custom fonts - use only built-in fonts
       });
       
-      // CRITICAL FIX: Set default font to Helvetica (built-in) to avoid font errors
+      // Register Cairo fonts for Arabic support
+      try {
+        const { cairoRegular, cairoBold } = await registerCairoFonts(doc);
+        hasCairo = !!(cairoRegular && cairoBold);
+      } catch (fontError) {
+        console.warn('⚠️ [PDF] Cairo fonts not available, using Helvetica:', fontError.message);
+        hasCairo = false;
+      }
+      
+      // Set default font
       doc.font('Helvetica');
     } catch (pdfError) {
       console.error('Error creating PDF document:', pdfError);
@@ -241,17 +252,29 @@ exports.generateUserReportPDF = asyncHandler(async (req, res) => {
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, Content-Length');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     
-    // PDF content headers
+    // PDF content headers - Use inline for browser viewing, attachment for download
+    // Check if user wants to download (via query parameter) or view inline
+    const shouldDownload = req.query.download === 'true' || req.query.download === '1';
+    const disposition = shouldDownload ? 'attachment' : 'inline';
+    
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${sanitizedFileName}"`
+      `${disposition}; filename="${sanitizedFileName}"`
     );
     
-    // Cache control for downloads
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    // Cache control - allow caching for inline viewing, no cache for downloads
+    if (shouldDownload) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    }
+    
+    // Support range requests for better PDF viewing
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
 
     // Handle PDF generation errors
     doc.on('error', (error) => {
@@ -387,6 +410,45 @@ exports.generateUserReportPDF = asyncHandler(async (req, res) => {
       return y + headerHeight + 4; // Minimal spacing
     };
 
+    // Helper function to draw text with Cairo font and RTL support
+    const drawTextWithFont = (text, x, y, options = {}) => {
+      if (!text) return;
+      
+      const formatted = formatTextForPDF(String(text), hasCairo);
+      const fontSize = options.fontSize || doc._fontSize || 12;
+      const color = options.color || colors.text || '#000000';
+      
+      // Set font size and color
+      doc.fontSize(fontSize)
+         .fillColor(color);
+      
+      const textOptions = {
+        ...options,
+        font: formatted.font,
+        align: formatted.alignment || options.align || 'left',
+      };
+      
+      // Remove fontSize and color from textOptions to avoid conflicts
+      delete textOptions.fontSize;
+      delete textOptions.color;
+      
+      doc.text(formatted.text, x, y, textOptions);
+    };
+
+    // Helper function to draw bold text with Cairo font and RTL support
+    const drawBoldTextWithFont = (text, x, y, options = {}) => {
+      if (!text) return;
+      
+      const formatted = formatTextForPDF(String(text), hasCairo);
+      const textOptions = {
+        ...options,
+        font: formatted.boldFont,
+        align: formatted.alignment || options.align || 'left',
+      };
+      
+      doc.text(formatted.text, x, y, textOptions);
+    };
+
     // Helper function to draw an info card (Enhanced with accent color)
     // CRITICAL: Use translated text (translation should be done before calling this)
     const drawInfoCard = (label, value, x, y, width) => {
@@ -406,20 +468,19 @@ exports.generateUserReportPDF = asyncHandler(async (req, res) => {
         .fillColor(colors.accent)
         .fill();
       
-      // Label (smaller) - use translated text
+      // Label (smaller) - use formatted text with Cairo support
       doc.fontSize(8)
-        .fillColor(colors.textLight)
-        .text(String(label), x + padding + 2, y + 3, {
-          width: width - (padding * 2) - 2
-        });
+        .fillColor(colors.textLight);
+      drawTextWithFont(String(label), x + padding + 2, y + 3, {
+        width: width - (padding * 2) - 2
+      });
       
-      // Value (slightly smaller) - use translated text
+      // Value (slightly smaller) - use formatted text with Cairo support
       doc.fontSize(11)
-        .fillColor(colors.text)
-        .font('Helvetica-Bold')
-        .text(String(value), x + padding + 2, y + 15, {
-          width: width - (padding * 2) - 2
-        });
+        .fillColor(colors.text);
+      drawBoldTextWithFont(String(value), x + padding + 2, y + 15, {
+        width: width - (padding * 2) - 2
+      });
       
       // Reset font
       doc.font('Helvetica');
@@ -573,10 +634,34 @@ exports.generateUserReportPDF = asyncHandler(async (req, res) => {
     // ============================================
     currentY = drawSectionHeader('User Information', currentY);
     
-    // CRITICAL: Translate user name and other Arabic text to English
-    const translatedUserName = await translateToEnglish(userName);
-    const translatedEmail = await translateToEnglish(safeText(user.email));
-    const translatedRole = await translateToEnglish(safeText(user.role));
+    // CRITICAL: Use Arabic text directly if Cairo fonts are available
+    // Otherwise, translate to English for better readability
+    const userNameFormatted = formatTextForPDF(userName, hasCairo);
+    const emailFormatted = formatTextForPDF(safeText(user.email), hasCairo);
+    const roleFormatted = formatTextForPDF(safeText(user.role), hasCairo);
+    
+    // Use original Arabic text if Cairo is available, otherwise translate
+    let translatedUserName = userName;
+    let translatedEmail = safeText(user.email);
+    let translatedRole = safeText(user.role);
+    
+    if (hasCairo) {
+      // Use Arabic text directly with Cairo font
+      translatedUserName = userNameFormatted.isArabic ? cleanText(userName) : userName;
+      translatedEmail = emailFormatted.isArabic ? cleanText(safeText(user.email)) : safeText(user.email);
+      translatedRole = roleFormatted.isArabic ? cleanText(safeText(user.role)) : safeText(user.role);
+    } else {
+      // Translate Arabic to English if Cairo not available
+      if (userNameFormatted.isArabic) {
+        translatedUserName = await translateToEnglish(userName);
+      }
+      if (emailFormatted.isArabic) {
+        translatedEmail = await translateToEnglish(safeText(user.email));
+      }
+      if (roleFormatted.isArabic) {
+        translatedRole = await translateToEnglish(safeText(user.role));
+      }
+    }
     
     // Use 3 cards per row to save space
     const cardWidth = (pageWidth - (margin * 2) - 30) / 3; // 3 cards per row
@@ -636,9 +721,28 @@ exports.generateUserReportPDF = asyncHandler(async (req, res) => {
       cardY = currentY;
       const compactCardWidth = (pageWidth - (margin * 2) - 20) / 2; // 2 cards per row
 
-      // CRITICAL: Translate membership type and status to English
-      const translatedMembershipType = await translateToEnglish(safeText(membership.membership_type));
-      const translatedStatus = await translateToEnglish(safeText(membership.status, 'Active'));
+      // CRITICAL: Use Arabic text if Cairo available, otherwise translate
+      const membershipTypeFormatted = formatTextForPDF(safeText(membership.membership_type || membership.name), hasCairo);
+      const statusFormatted = formatTextForPDF(safeText(membership.status, 'Active'), hasCairo);
+      
+      let translatedMembershipType = safeText(membership.membership_type || membership.name);
+      let translatedStatus = safeText(membership.status, 'Active');
+      
+      if (hasCairo) {
+        translatedMembershipType = membershipTypeFormatted.isArabic 
+          ? cleanText(safeText(membership.membership_type || membership.name))
+          : safeText(membership.membership_type || membership.name);
+        translatedStatus = statusFormatted.isArabic
+          ? cleanText(safeText(membership.status, 'Active'))
+          : safeText(membership.status, 'Active');
+      } else {
+        if (membershipTypeFormatted.isArabic) {
+          translatedMembershipType = await translateToEnglish(safeText(membership.membership_type || membership.name));
+        }
+        if (statusFormatted.isArabic) {
+          translatedStatus = await translateToEnglish(safeText(membership.status, 'Active'));
+        }
+      }
       
       // Row 1: Type and Status
       drawInfoCard('Membership Type', translatedMembershipType.toUpperCase(), cardX, cardY, compactCardWidth);
@@ -784,23 +888,57 @@ exports.generateUserReportPDF = asyncHandler(async (req, res) => {
             .fill();
         }
 
-        // CRITICAL: Translate Arabic text to English for clarity
+        // CRITICAL: Use Arabic text if Cairo available, otherwise translate
         const packageName = safeText(booking.package_name, 'Package');
         const status = safeText(booking.status);
         const amount = typeof booking.total_amount === 'number' 
           ? booking.total_amount 
           : (typeof booking.totalAmount === 'number' ? booking.totalAmount : 0);
         
-        // Translate package name and status
-        const translatedPackageName = await translateToEnglish(packageName);
-        const translatedStatus = await translateToEnglish(status);
+        const packageNameFormatted = formatTextForPDF(packageName, hasCairo);
+        const statusFormatted = formatTextForPDF(status, hasCairo);
+        
+        let translatedPackageName = packageName;
+        let translatedStatus = status;
+        
+        if (hasCairo) {
+          translatedPackageName = packageNameFormatted.isArabic ? cleanText(packageName) : packageName;
+          translatedStatus = statusFormatted.isArabic ? cleanText(status) : status;
+        } else {
+          if (packageNameFormatted.isArabic) {
+            translatedPackageName = await translateToEnglish(packageName);
+          }
+          if (statusFormatted.isArabic) {
+            translatedStatus = await translateToEnglish(status);
+          }
+        }
 
+        // Use formatted text with proper font support
         doc.fontSize(8)
           .fillColor(colors.text)
-          .text((index + 1).toString(), tableLeft + 3, tableY + 6, { width: colWidths.num })
-          .text(translatedPackageName.length > 25 ? translatedPackageName.substring(0, 25) + '...' : translatedPackageName, 
-                tableLeft + colWidths.num + 3, tableY + 6, { width: colWidths.package })
-          .text(translatedStatus.length > 8 ? translatedStatus.substring(0, 8) : translatedStatus, tableLeft + colWidths.num + colWidths.package + 3, tableY + 6, { width: colWidths.status })
+          .font('Helvetica')
+          .text((index + 1).toString(), tableLeft + 3, tableY + 6, { width: colWidths.num });
+        
+        // Use drawTextWithFont for package name to ensure proper Arabic rendering
+        const packageNameToDisplay = translatedPackageName.length > 30 ? translatedPackageName.substring(0, 30) + '...' : translatedPackageName;
+        drawTextWithFont(packageNameToDisplay, tableLeft + colWidths.num + 3, tableY + 6, { 
+          width: colWidths.package,
+          fontSize: 8,
+          color: colors.text
+        });
+        
+        // Use drawTextWithFont for status
+        const statusToDisplay = translatedStatus.length > 10 ? translatedStatus.substring(0, 10) : translatedStatus;
+        drawTextWithFont(statusToDisplay, tableLeft + colWidths.num + colWidths.package + 3, tableY + 6, { 
+          width: colWidths.status,
+          fontSize: 8,
+          color: colors.text
+        });
+        
+        // Amount (always numeric, use regular font)
+        doc.fontSize(8)
+          .fillColor(colors.text)
+          .font('Helvetica')
           .text(`${amount.toFixed(2)} EGP`, tableLeft + colWidths.num + colWidths.package + colWidths.status + 3, tableY + 6, { width: colWidths.amount });
 
         // Draw border

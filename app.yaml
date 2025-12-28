@@ -1,0 +1,76 @@
+# Google App Engine Configuration for Altayar Backend
+# This file is used for deploying to Google Cloud Platform
+
+runtime: nodejs18
+
+env: standard
+
+# Automatic scaling configuration
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.6
+  target_throughput_utilization: 0.6
+
+# Resources configuration
+resources:
+  cpu: 1
+  memory_gb: 0.5
+  disk_size_gb: 10
+
+# Environment variables
+env_variables:
+  NODE_ENV: production
+  PORT: 8080
+
+# Health check configuration
+readiness_check:
+  path: "/health"
+  check_interval_sec: 5
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 2
+  app_start_timeout_sec: 300
+
+liveness_check:
+  path: "/health"
+  check_interval_sec: 30
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 2
+
+# Skip files that shouldn't be deployed
+skip_files:
+  - ^(.*/)?#.*#$
+  - ^(.*/)?.*~$
+  - ^(.*/)?.*\.py[co]$
+  - ^(.*/)?.*\.swp$
+  - ^(.*/)?.*\.bak$
+  - ^(.*/)?.*\.log$
+  - ^(.*/)?\.git/.*$
+  - ^(.*/)?node_modules/.*$
+  - ^(.*/)?\.env$
+  - ^(.*/)?\.env\.local$
+  - ^(.*/)?\.env\.production$
+  - ^(.*/)?uploads/.*$
+  - ^(.*/)?memberships/.*$
+  - ^(.*/)?\.gitignore$
+  - ^(.*/)?README\.md$
+  - ^(.*/)?\.vscode/.*$
+  - ^(.*/)?scripts/.*$
+
+# Handlers for static files and API routes
+handlers:
+  # Serve static files from uploads directory (if needed)
+  - url: /uploads
+    static_dir: uploads
+    secure: always
+    http_headers:
+      Access-Control-Allow-Origin: "*"
+      Access-Control-Allow-Methods: "GET, OPTIONS"
+      Access-Control-Allow-Headers: "Content-Type, Authorization"
+
+  # All other requests go to Node.js
+  - url: /.*
+    script: auto
+    secure: always

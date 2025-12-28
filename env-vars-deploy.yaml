@@ -1,0 +1,10 @@
+﻿NODE_ENV: production
+DB_HOST: /cloudsql/altayar-46d6f:us-central1:altayar-db
+DB_PORT: "5432"
+DB_USER: postgres
+DB_PASSWORD: "AAIOH2040%%"
+DB_NAME: tourist_app_db
+JWT_SECRET: "u8iFrNdok5wYTUjvlCE6WgsRJehAq0mSaBH92PZ4VOMKnGIXf3bzt1QDpc7yxL"
+SESSION_SECRET: "mlOJ9RfjhaB6eLupgUNqZ4HFnzkWydVi8Q7t13sX2AD5MrK0YxTcvPbIoGwCES"
+FRONTEND_URL: "https://altayar-46d6f.web.app,https://altayar-46d6f.firebaseapp.com"
+BACKEND_URL: "https://altayar-backend-kuwjte4rda-uc.a.run.app"

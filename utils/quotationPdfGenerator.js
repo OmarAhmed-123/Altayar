@@ -6,6 +6,11 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs').promises;
 const path = require('path');
+const {
+  registerCairoFonts,
+  formatTextForPDF,
+  cleanText,
+} = require('./pdfFontHelper');
 
 /**
  * Generate quotation PDF
@@ -13,18 +18,22 @@ const path = require('path');
  * @returns {Promise<Buffer>} PDF buffer
  */
 async function generateQuotationPDF(quotation) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       const doc = new PDFDocument({
         size: 'A4',
         margins: { top: 50, bottom: 50, left: 50, right: 50 },
         info: {
           Title: `Quotation #${quotation.id}`,
-          Author: 'ALTAYARVIP',
+          Author: 'ALTAYAR VIP',
           Subject: 'Sales Quotation',
-          Creator: 'ALTAYARVIP System',
+          Creator: 'ALTAYAR VIP System',
         }
       });
+
+      // Register Cairo fonts for Arabic support
+      const { cairoRegular, cairoBold } = await registerCairoFonts(doc);
+      const hasCairo = !!(cairoRegular && cairoBold);
 
       const buffers = [];
       doc.on('data', buffers.push.bind(buffers));

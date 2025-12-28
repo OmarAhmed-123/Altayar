@@ -4,6 +4,13 @@
  */
 
 exports.up = async function(knex) {
+  // Check if users table exists
+  const hasTable = await knex.schema.hasTable('users');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] users table does not exist. Skipping referral_code column addition.');
+    return;
+  }
+  
   // Check if column already exists
   const hasReferralCode = await knex.schema.hasColumn('users', 'referral_code');
   

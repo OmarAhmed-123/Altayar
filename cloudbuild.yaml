@@ -1,0 +1,35 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/altayar-backend:${BUILD_ID}'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/altayar-backend:latest'
+      - '.'
+    timeout: '1200s'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/altayar-backend:${BUILD_ID}']
+    timeout: '600s'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/altayar-backend:latest']
+    timeout: '600s'
+
+  # NOTE: Deployment is done separately via deploy-to-cloud-run.bat
+  # This allows for better control over environment variables and Cloud SQL connection
+  # Run: deploy-to-cloud-run.bat after build completes
+
+images:
+  - 'gcr.io/$PROJECT_ID/altayar-backend:${BUILD_ID}'
+  - 'gcr.io/$PROJECT_ID/altayar-backend:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1800s'
+

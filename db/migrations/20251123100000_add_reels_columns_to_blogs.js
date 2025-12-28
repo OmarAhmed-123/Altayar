@@ -4,6 +4,13 @@
  */
 
 exports.up = async function(knex) {
+  // Check if blogs table exists
+  const hasTable = await knex.schema.hasTable('blogs');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] blogs table does not exist. Skipping reels columns addition.');
+    return;
+  }
+  
   // Use raw SQL to check and add columns safely
   const hasColumn = async (tableName, columnName) => {
     const result = await knex.raw(`

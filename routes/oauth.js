@@ -15,7 +15,8 @@ const {
 } = require('../controllers/oauthController');
 
 // Public OAuth routes
-router.get('/config', getOAuthConfig);
+// NOTE: /config route is handled directly in server.js to ensure it always works
+// router.get('/config', getOAuthConfig); // Disabled - handled in server.js
 router.get('/google', googleLogin);
 router.get('/google/callback', googleCallback);
 router.get('/apple', appleLogin);

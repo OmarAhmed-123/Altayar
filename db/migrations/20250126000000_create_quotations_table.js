@@ -3,7 +3,23 @@
  * Stores sales quotations/proposals sent to customers
  */
 
-exports.up = function(knex) {
+exports.up = async function(knex) {
+  // Check if required tables exist
+  const hasUsersTable = await knex.schema.hasTable('users');
+  const hasPackagesTable = await knex.schema.hasTable('packages');
+  const hasQuotationsTable = await knex.schema.hasTable('quotations');
+  
+  if (hasQuotationsTable) {
+    console.log('✅ [Migration] quotations table already exists.');
+    return;
+  }
+  
+  if (!hasUsersTable) {
+    console.warn('⚠️  [Migration] users table does not exist. Skipping quotations table creation.');
+    console.warn('💡 [Migration] This migration will be applied when users table is created.');
+    return;
+  }
+  
   return knex.schema.createTable('quotations', function(table) {
     table.increments('id').primary();
     table.integer('customer_id').unsigned().notNullable();
@@ -20,10 +36,12 @@ exports.up = function(knex) {
     table.timestamp('responded_at').nullable();
     table.timestamps(true, true);
 
-    // Foreign keys
+    // Foreign keys (only if tables exist)
     table.foreign('customer_id').references('id').inTable('users').onDelete('CASCADE');
     table.foreign('sales_id').references('id').inTable('users').onDelete('CASCADE');
-    table.foreign('package_id').references('id').inTable('packages').onDelete('SET NULL');
+    if (hasPackagesTable) {
+      table.foreign('package_id').references('id').inTable('packages').onDelete('SET NULL');
+    }
 
     // Indexes
     table.index('customer_id');

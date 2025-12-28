@@ -1,0 +1,8 @@
+DB_HOST: /cloudsql/altayar-46d6f:us-central1:altayar-db
+DB_USER: postgres
+DB_NAME: tourist_app_db
+NODE_ENV: production
+DB_PORT: "5432"
+# Adding some secure defaults for JWT if missing
+JWT_SECRET: secure-jwt-secret-key-change-in-production
+JWT_EXPIRES_IN: 90d

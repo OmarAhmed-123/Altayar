@@ -1,4 +1,11 @@
 exports.up = async function up(knex) {
+  // Check if users table exists
+  const hasTable = await knex.schema.hasTable('users');
+  if (!hasTable) {
+    console.warn('⚠️  [Migration] users table does not exist. Skipping is_super_admin and created_by columns addition.');
+    return;
+  }
+  
   const hasIsSuperAdmin = await knex.schema.hasColumn('users', 'is_super_admin');
   const hasCreatedBy = await knex.schema.hasColumn('users', 'created_by');
 
