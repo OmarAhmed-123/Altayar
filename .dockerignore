@@ -10,7 +10,8 @@ README.md
 .idea
 *.log
 uploads/*
-memberships/*
+# Keep memberships PDFs - they are static assets needed for the app
+# memberships/*
 .DS_Store
 coverage
 .nyc_output

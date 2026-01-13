@@ -91,10 +91,11 @@ let dbConnected = false;
     // Cloud Run health check requires server to start within 60 seconds
     const dbHost = process.env.DB_HOST || '';
     const isCloudSqlProxy = dbHost.startsWith('/cloudsql/');
-    // CRITICAL: Only 1 retry in production to ensure fast startup
-    // Database connection will retry in background if initial attempt fails
-    const retries = cleanEnv === 'production' ? 1 : 5;
-    const delay = cleanEnv === 'production' ? 1000 : 2000;
+    // CRITICAL FIX: Increased to 5 retries in production to ensure connection
+    // Cloud SQL Proxy may need more time to connect on cold start
+    // Database connection MUST complete before accepting requests requiring DB
+    const retries = cleanEnv === 'production' ? 5 : 5;
+    const delay = cleanEnv === 'production' ? 3000 : 2000;
     dbConnected = await connectDB(retries, delay);
     if (dbConnected) {
       // CRITICAL FIX: Start connection health monitoring

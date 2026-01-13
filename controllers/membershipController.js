@@ -29,7 +29,7 @@ function encodeContentDisposition(filename, disposition = 'inline') {
   };
 
   const sanitized = sanitizeFilename(filename);
-  
+
   // Create a safe ASCII fallback filename
   // Replace non-ASCII with underscore, but preserve the structure
   let safeAsciiName = sanitized
@@ -88,14 +88,14 @@ const getMemberships = asyncHandler(async (req, res) => {
     const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
     return `${protocol}://${host}`;
   };
-  
+
   const baseUrl = getBaseUrl();
   const membershipsWithUrls = await Promise.all(memberships.map(async (membership) => {
     let imageUrl = membership.image_url;
     if (imageUrl && !imageUrl.startsWith('http')) {
       imageUrl = `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
     }
-    
+
     // CRITICAL: Get PDF URL for membership
     // First check if PDF exists in database, otherwise find it from files
     let pdfUrl = membership.pdf_url;
@@ -117,7 +117,7 @@ const getMemberships = asyncHandler(async (req, res) => {
       const host = req.get('host');
       pdfUrl = `${protocol}://${host}${pdfUrl}`;
     }
-    
+
     return {
       ...membership,
       image_url: imageUrl || membership.image_url,
@@ -128,7 +128,7 @@ const getMemberships = asyncHandler(async (req, res) => {
   }));
 
   console.log(`✅ [Memberships API] Returning ${membershipsWithUrls.length} memberships with URLs`);
-  
+
   res.json({
     success: true,
     data: membershipsWithUrls
@@ -138,7 +138,7 @@ const getMemberships = asyncHandler(async (req, res) => {
 // Get membership by ID
 const getMembershipById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  
+
   const membership = await Membership.query()
     .findById(id)
     .where('is_active', true);
@@ -160,7 +160,7 @@ const getMembershipById = asyncHandler(async (req, res) => {
     const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
     return `${protocol}://${host}`;
   };
-  
+
   const baseUrl = getBaseUrl();
   let imageUrl = membership.image_url;
   if (imageUrl && !imageUrl.startsWith('http')) {
@@ -203,22 +203,22 @@ const getMembershipById = asyncHandler(async (req, res) => {
 
 // Create new membership (Admin only)
 const createMembership = asyncHandler(async (req, res) => {
-  const { 
-    name, 
+  const {
+    name,
     tier,
-    price, 
-    points, 
+    price,
+    points,
     point_multiplier,
     cashback_rate,
     welcome_points,
     welcome_cashback,
     duration_days,
     description,
-    benefits, 
+    benefits,
     pdf_url,
     is_active
   } = req.body;
-  
+
   const dataToInsert = {
     name: name || 'New Membership',
     tier: tier || 'silver',
@@ -230,11 +230,11 @@ const createMembership = asyncHandler(async (req, res) => {
     welcome_cashback: welcome_cashback || 0,
     duration_days: duration_days || 30,
     description: description || null,
-    benefits: Array.isArray(benefits) 
-      ? benefits 
-      : (typeof benefits === 'string' 
-          ? benefits.split(',').map(b => b.trim()).filter(b => b.length > 0)
-          : []),
+    benefits: Array.isArray(benefits)
+      ? benefits
+      : (typeof benefits === 'string'
+        ? benefits.split(',').map(b => b.trim()).filter(b => b.length > 0)
+        : []),
     pdf_url: pdf_url || null,
     is_active: is_active !== undefined ? is_active : true
   };
@@ -258,7 +258,7 @@ const createMembership = asyncHandler(async (req, res) => {
     const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
     return `${protocol}://${host}`;
   };
-  
+
   const baseUrl = getBaseUrl();
   let imageUrl = membership.image_url;
   if (imageUrl && !imageUrl.startsWith('http')) {
@@ -278,27 +278,27 @@ const createMembership = asyncHandler(async (req, res) => {
 const updateMembership = asyncHandler(async (req, res) => {
   const fs = require('fs').promises;
   const path = require('path');
-  
+
   const { id } = req.params;
-  const { 
-    name, 
+  const {
+    name,
     tier,
-    price, 
-    points, 
+    price,
+    points,
     point_multiplier,
     cashback_rate,
     welcome_points,
     welcome_cashback,
     duration_days,
     description,
-    benefits, 
-    pdf_url, 
-    is_active 
+    benefits,
+    pdf_url,
+    is_active
   } = req.body;
 
   // Get current membership to check for old image
   const currentMembership = await Membership.query().findById(id);
-  
+
   if (!currentMembership) {
     return res.status(404).json({
       success: false,
@@ -338,9 +338,9 @@ const updateMembership = asyncHandler(async (req, res) => {
         const oldImagePath = currentMembership.image_url.startsWith('/uploads/')
           ? currentMembership.image_url.replace('/uploads/', '')
           : currentMembership.image_url;
-        
+
         const fullOldPath = path.join(__dirname, '../uploads', oldImagePath);
-        
+
         try {
           await fs.access(fullOldPath);
           await fs.unlink(fullOldPath);
@@ -382,7 +382,7 @@ const updateMembership = asyncHandler(async (req, res) => {
     const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
     return `${protocol}://${host}`;
   };
-  
+
   const baseUrl = getBaseUrl();
   let imageUrl = updatedMembership.image_url;
   if (imageUrl && !imageUrl.startsWith('http')) {
@@ -439,34 +439,70 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
 
   // Find PDF file based on membership name and tier
   let pdfPath = null;
-  
+
   // Clean tier value (handle "null" string case)
   let cleanTier = membership.tier;
   if (cleanTier === 'null' || cleanTier === null || cleanTier === undefined || cleanTier === '') {
     cleanTier = null;
   }
-  
+
   console.log(`🔍 [Membership PDF View] Looking for PDF - ID: ${id}, Name: "${membership.name}", Tier: "${cleanTier}"`);
-  
+
   // First, try to find PDF from database pdf_url
   if (membership.pdf_url) {
-    // Check if it's a relative path in uploads
+    // Check if it's a relative path
     if (!membership.pdf_url.startsWith('http')) {
-      const uploadsPath = path.join(__dirname, '../uploads', membership.pdf_url);
-      try {
-        await fs.access(uploadsPath);
-        pdfPath = uploadsPath;
-        console.log(`✅ [Membership PDF View] Found PDF from database pdf_url: ${uploadsPath}`);
-      } catch (error) {
-        console.log(`⚠️ [Membership PDF View] PDF from database pdf_url not found: ${uploadsPath}`);
-        // File not in uploads, continue to check memberships folder
+      let localPath = null;
+
+      // Handle /memberships/ paths
+      if (membership.pdf_url.startsWith('/memberships/')) {
+        const filename = membership.pdf_url.replace('/memberships/', '');
+        localPath = path.join(__dirname, '../memberships', filename);
+      }
+      // Handle /uploads/ paths
+      else if (membership.pdf_url.startsWith('/uploads/')) {
+        const filename = membership.pdf_url.replace('/uploads/', '');
+        localPath = path.join(__dirname, '../uploads', filename);
+      }
+      // Handle paths without leading slash
+      else if (membership.pdf_url.startsWith('memberships/')) {
+        const filename = membership.pdf_url.replace('memberships/', '');
+        localPath = path.join(__dirname, '../memberships', filename);
+      }
+      // Default: try memberships folder
+      else {
+        localPath = path.join(__dirname, '../memberships', membership.pdf_url);
+      }
+
+      if (localPath) {
+        try {
+          await fs.access(localPath);
+          pdfPath = localPath;
+          console.log(`✅ [Membership PDF View] Found PDF from database pdf_url: ${localPath}`);
+        } catch (error) {
+          console.log(`⚠️ [Membership PDF View] PDF from database pdf_url not found: ${localPath}`);
+          // Continue to search in memberships folder
+        }
       }
     } else {
-      // If it's a full URL, we can't serve it directly, need to find local file
+      // If it's a full URL, extract the filename and look locally
       console.log(`⚠️ [Membership PDF View] pdf_url is a full URL, will search for local file`);
+      // Try to extract filename from URL
+      try {
+        const urlPath = new URL(membership.pdf_url).pathname;
+        if (urlPath.includes('/memberships/')) {
+          const filename = urlPath.split('/memberships/').pop();
+          const localPath = path.join(__dirname, '../memberships', filename);
+          await fs.access(localPath);
+          pdfPath = localPath;
+          console.log(`✅ [Membership PDF View] Found PDF from URL filename: ${localPath}`);
+        }
+      } catch (error) {
+        console.log(`⚠️ [Membership PDF View] Could not find local file from URL`);
+      }
     }
   }
-  
+
   // If not found, try to find in memberships folder using both name and tier
   if (!pdfPath) {
     console.log(`🔍 [Membership PDF View] Searching in memberships folder...`);
@@ -475,42 +511,42 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
       name: membership.name,
       tier: cleanTier,
     });
-    
+
     // Strategy 1: Try with both name and tier
     pdfPath = await findMembershipPDF(membership.name, cleanTier);
-    
+
     // Strategy 2: Try with tier only (most reliable)
     if (!pdfPath && cleanTier) {
       console.log(`🔍 [Membership PDF View] Trying with tier only: "${cleanTier}"`);
       pdfPath = await findMembershipPDF(null, cleanTier);
     }
-    
+
     // Strategy 3: Try with name only
     if (!pdfPath && membership.name) {
       console.log(`🔍 [Membership PDF View] Trying with name only: "${membership.name}"`);
       pdfPath = await findMembershipPDF(membership.name, null);
     }
-    
+
     // Strategy 4: Try direct file listing and match
     if (!pdfPath) {
       try {
         const membershipsDir = path.join(__dirname, '../memberships');
         const files = await fs.readdir(membershipsDir);
         const pdfFiles = files.filter(f => f.endsWith('.pdf'));
-        
+
         console.log(`🔍 [Membership PDF View] All available PDF files: ${pdfFiles.join(', ')}`);
-        
+
         // Try to match by checking file names directly
         for (const pdfFile of pdfFiles) {
           const filePrefix = pdfFile.split('_')[0].toLowerCase();
           const membershipNameLower = (membership.name || '').toLowerCase();
           const tierLower = (cleanTier || '').toLowerCase();
-          
+
           // Check if file matches membership name or tier
           if ((membershipNameLower && filePrefix.includes(membershipNameLower)) ||
-              (tierLower && filePrefix.includes(tierLower)) ||
-              (membershipNameLower && membershipNameLower.includes(filePrefix.split('membership')[0])) ||
-              (tierLower && tierLower === filePrefix.split('membership')[0])) {
+            (tierLower && filePrefix.includes(tierLower)) ||
+            (membershipNameLower && membershipNameLower.includes(filePrefix.split('membership')[0])) ||
+            (tierLower && tierLower === filePrefix.split('membership')[0])) {
             pdfPath = path.join(membershipsDir, pdfFile);
             console.log(`✅ [Membership PDF View] Found PDF by direct matching: ${pdfFile}`);
             break;
@@ -525,28 +561,28 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
   // If PDF not found, try to generate a basic membership information PDF
   if (!pdfPath) {
     console.log(`⚠️ [Membership PDF View] PDF not found, attempting to generate basic membership PDF...`);
-    
+
     try {
       // Generate a basic membership information PDF
       const PDFDocument = require('pdfkit');
       const membershipsDir = path.join(__dirname, '../memberships');
-      
+
       // Ensure memberships directory exists
       try {
         await fs.mkdir(membershipsDir, { recursive: true });
       } catch (error) {
         // Directory might already exist
       }
-      
+
       // Generate PDF filename based on membership
-      const membershipPrefix = cleanTier 
+      const membershipPrefix = cleanTier
         ? (cleanTier.charAt(0).toUpperCase() + cleanTier.slice(1)) + 'Membership'
         : (membership.name || 'Membership').replace(/[^a-zA-Z0-9]/g, '') + 'Membership';
-      
+
       const timestamp = Date.now();
       const pdfFilename = `${membershipPrefix}_${timestamp}.pdf`;
       const pdfFilePath = path.join(membershipsDir, pdfFilename);
-      
+
       // Create a basic PDF document
       const doc = new PDFDocument({
         size: 'A4',
@@ -558,55 +594,55 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
           Creator: 'ALTAYAR VIP System',
         }
       });
-      
+
       // Write PDF to file
       const writeStream = fsSync.createWriteStream(pdfFilePath);
       doc.pipe(writeStream);
-      
+
       // Add content
       doc.fontSize(24)
         .font('Helvetica-Bold')
         .fillColor('#1a4d8c')
         .text('ALTAYAR VIP', 50, 50, { align: 'center' });
-      
+
       doc.fontSize(18)
         .font('Helvetica-Bold')
         .fillColor('#000000')
         .text(membership.name || 'Membership', 50, 100, { align: 'center' });
-      
+
       let yPos = 150;
       doc.fontSize(14)
         .font('Helvetica-Bold')
         .fillColor('#1a4d8c')
         .text('Membership Information', 50, yPos);
-      
+
       yPos += 30;
       doc.fontSize(11)
         .font('Helvetica')
         .fillColor('#000000');
-      
+
       if (membership.description) {
         doc.text('Description:', 50, yPos);
         yPos += 20;
         doc.text(membership.description, 50, yPos, { width: 495 });
         yPos += 40;
       }
-      
+
       if (cleanTier) {
         doc.text(`Tier: ${cleanTier}`, 50, yPos);
         yPos += 20;
       }
-      
+
       if (membership.price) {
         doc.text(`Price: ${membership.price} EGP`, 50, yPos);
         yPos += 20;
       }
-      
+
       if (membership.duration_days) {
         doc.text(`Duration: ${membership.duration_days} days`, 50, yPos);
         yPos += 20;
       }
-      
+
       if (membership.benefits && Array.isArray(membership.benefits) && membership.benefits.length > 0) {
         yPos += 20;
         doc.font('Helvetica-Bold')
@@ -618,26 +654,26 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
           yPos += 20;
         });
       }
-      
+
       // Footer
       const pageHeight = doc.page.height;
       doc.fontSize(9)
         .font('Helvetica')
         .fillColor('#666666')
         .text('© ALTAYAR VIP - Premium Membership Program', 50, pageHeight - 40, { align: 'center' });
-      
+
       doc.end();
-      
+
       // Wait for file to be written
       await new Promise((resolve, reject) => {
         writeStream.on('finish', resolve);
         writeStream.on('error', reject);
       });
-      
+
       // Verify file was created
       await fs.access(pdfFilePath);
       pdfPath = pdfFilePath;
-      
+
       // Update membership with PDF URL
       try {
         const relativePath = `memberships/${pdfFilename}`;
@@ -648,7 +684,7 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
       } catch (updateError) {
         console.warn('⚠️ [Membership PDF View] Could not update membership pdf_url:', updateError.message);
       }
-      
+
     } catch (generateError) {
       console.error('❌ [Membership PDF View] Error generating PDF:', generateError);
       return res.status(500).json({
@@ -658,7 +694,7 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
       });
     }
   }
-  
+
   if (!pdfPath) {
     console.error(`❌ [Membership PDF View] PDF not found and could not generate for membership ID: ${id}, Name: "${membership.name}", Tier: "${cleanTier}"`);
     return res.status(404).json({
@@ -666,7 +702,7 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
       message: 'PDF file not available for this membership and could not be generated'
     });
   }
-  
+
   console.log(`✅ [Membership PDF View] Successfully found PDF: ${pdfPath}`);
 
   // Track the view/download
@@ -683,29 +719,29 @@ const viewMembershipPDF = asyncHandler(async (req, res) => {
       console.log('⚠️ [DOWNLOAD TRACKING] Could not track PDF view:', trackError.message);
     }
   }
-  
+
   try {
     // Check if file exists
     await fs.access(pdfPath);
-    
+
     // Generate safe filename for Content-Disposition header
     const filename = `${membership.name || 'membership'}_membership.pdf`;
     const contentDisposition = encodeContentDisposition(filename, 'inline');
-    
+
     // Set CORS headers for cross-origin requests (React Native, web browsers)
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, Accept-Ranges');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, Content-Length, Content-Range, Accept-Ranges');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    
+
     // Set headers for PDF viewing (inline)
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', contentDisposition);
     res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
     res.setHeader('Accept-Ranges', 'bytes'); // Support range requests for partial content
     res.setHeader('X-Content-Type-Options', 'nosniff'); // Security header
-    
+
     // Send the file
     res.sendFile(pdfPath);
   } catch (error) {
@@ -740,34 +776,70 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
 
   // Find PDF file based on membership name and tier
   let pdfPath = null;
-  
+
   // Clean tier value (handle "null" string case)
   let cleanTier = membership.tier;
   if (cleanTier === 'null' || cleanTier === null || cleanTier === undefined || cleanTier === '') {
     cleanTier = null;
   }
-  
+
   console.log(`🔍 [Membership PDF Download] Looking for PDF - ID: ${id}, Name: "${membership.name}", Tier: "${cleanTier}"`);
-  
+
   // First, try to find PDF from database pdf_url
   if (membership.pdf_url) {
-    // Check if it's a relative path in uploads
+    // Check if it's a relative path
     if (!membership.pdf_url.startsWith('http')) {
-      const uploadsPath = path.join(__dirname, '../uploads', membership.pdf_url);
-      try {
-        await fs.access(uploadsPath);
-        pdfPath = uploadsPath;
-        console.log(`✅ [Membership PDF Download] Found PDF from database pdf_url: ${uploadsPath}`);
-      } catch (error) {
-        console.log(`⚠️ [Membership PDF Download] PDF from database pdf_url not found: ${uploadsPath}`);
-        // File not in uploads, continue to check memberships folder
+      let localPath = null;
+
+      // Handle /memberships/ paths
+      if (membership.pdf_url.startsWith('/memberships/')) {
+        const filename = membership.pdf_url.replace('/memberships/', '');
+        localPath = path.join(__dirname, '../memberships', filename);
+      }
+      // Handle /uploads/ paths
+      else if (membership.pdf_url.startsWith('/uploads/')) {
+        const filename = membership.pdf_url.replace('/uploads/', '');
+        localPath = path.join(__dirname, '../uploads', filename);
+      }
+      // Handle paths without leading slash
+      else if (membership.pdf_url.startsWith('memberships/')) {
+        const filename = membership.pdf_url.replace('memberships/', '');
+        localPath = path.join(__dirname, '../memberships', filename);
+      }
+      // Default: try memberships folder
+      else {
+        localPath = path.join(__dirname, '../memberships', membership.pdf_url);
+      }
+
+      if (localPath) {
+        try {
+          await fs.access(localPath);
+          pdfPath = localPath;
+          console.log(`✅ [Membership PDF Download] Found PDF from database pdf_url: ${localPath}`);
+        } catch (error) {
+          console.log(`⚠️ [Membership PDF Download] PDF from database pdf_url not found: ${localPath}`);
+          // Continue to search in memberships folder
+        }
       }
     } else {
-      // If it's a full URL, we can't serve it directly, need to find local file
+      // If it's a full URL, extract the filename and look locally
       console.log(`⚠️ [Membership PDF Download] pdf_url is a full URL, will search for local file`);
+      // Try to extract filename from URL
+      try {
+        const urlPath = new URL(membership.pdf_url).pathname;
+        if (urlPath.includes('/memberships/')) {
+          const filename = urlPath.split('/memberships/').pop();
+          const localPath = path.join(__dirname, '../memberships', filename);
+          await fs.access(localPath);
+          pdfPath = localPath;
+          console.log(`✅ [Membership PDF Download] Found PDF from URL filename: ${localPath}`);
+        }
+      } catch (error) {
+        console.log(`⚠️ [Membership PDF Download] Could not find local file from URL`);
+      }
     }
   }
-  
+
   // If not found, try to find in memberships folder using both name and tier
   if (!pdfPath) {
     console.log(`🔍 [Membership PDF Download] Searching in memberships folder...`);
@@ -776,42 +848,42 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
       name: membership.name,
       tier: cleanTier,
     });
-    
+
     // Strategy 1: Try with both name and tier
     pdfPath = await findMembershipPDF(membership.name, cleanTier);
-    
+
     // Strategy 2: Try with tier only (most reliable)
     if (!pdfPath && cleanTier) {
       console.log(`🔍 [Membership PDF Download] Trying with tier only: "${cleanTier}"`);
       pdfPath = await findMembershipPDF(null, cleanTier);
     }
-    
+
     // Strategy 3: Try with name only
     if (!pdfPath && membership.name) {
       console.log(`🔍 [Membership PDF Download] Trying with name only: "${membership.name}"`);
       pdfPath = await findMembershipPDF(membership.name, null);
     }
-    
+
     // Strategy 4: Try direct file listing and match
     if (!pdfPath) {
       try {
         const membershipsDir = path.join(__dirname, '../memberships');
         const files = await fs.readdir(membershipsDir);
         const pdfFiles = files.filter(f => f.endsWith('.pdf'));
-        
+
         console.log(`🔍 [Membership PDF Download] All available PDF files: ${pdfFiles.join(', ')}`);
-        
+
         // Try to match by checking file names directly
         for (const pdfFile of pdfFiles) {
           const filePrefix = pdfFile.split('_')[0].toLowerCase();
           const membershipNameLower = (membership.name || '').toLowerCase();
           const tierLower = (cleanTier || '').toLowerCase();
-          
+
           // Check if file matches membership name or tier
           if ((membershipNameLower && filePrefix.includes(membershipNameLower)) ||
-              (tierLower && filePrefix.includes(tierLower)) ||
-              (membershipNameLower && membershipNameLower.includes(filePrefix.split('membership')[0])) ||
-              (tierLower && tierLower === filePrefix.split('membership')[0])) {
+            (tierLower && filePrefix.includes(tierLower)) ||
+            (membershipNameLower && membershipNameLower.includes(filePrefix.split('membership')[0])) ||
+            (tierLower && tierLower === filePrefix.split('membership')[0])) {
             pdfPath = path.join(membershipsDir, pdfFile);
             console.log(`✅ [Membership PDF Download] Found PDF by direct matching: ${pdfFile}`);
             break;
@@ -826,28 +898,28 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
   // If PDF not found, try to generate a basic membership information PDF
   if (!pdfPath) {
     console.log(`⚠️ [Membership PDF Download] PDF not found, attempting to generate basic membership PDF...`);
-    
+
     try {
       // Generate a basic membership information PDF (same logic as view)
       const PDFDocument = require('pdfkit');
       const membershipsDir = path.join(__dirname, '../memberships');
-      
+
       // Ensure memberships directory exists
       try {
         await fs.mkdir(membershipsDir, { recursive: true });
       } catch (error) {
         // Directory might already exist
       }
-      
+
       // Generate PDF filename based on membership
-      const membershipPrefix = cleanTier 
+      const membershipPrefix = cleanTier
         ? (cleanTier.charAt(0).toUpperCase() + cleanTier.slice(1)) + 'Membership'
         : (membership.name || 'Membership').replace(/[^a-zA-Z0-9]/g, '') + 'Membership';
-      
+
       const timestamp = Date.now();
       const pdfFilename = `${membershipPrefix}_${timestamp}.pdf`;
       const pdfFilePath = path.join(membershipsDir, pdfFilename);
-      
+
       // Create a basic PDF document
       const doc = new PDFDocument({
         size: 'A4',
@@ -859,55 +931,55 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
           Creator: 'ALTAYAR VIP System',
         }
       });
-      
+
       // Write PDF to file
       const writeStream = fsSync.createWriteStream(pdfFilePath);
       doc.pipe(writeStream);
-      
+
       // Add content
       doc.fontSize(24)
         .font('Helvetica-Bold')
         .fillColor('#1a4d8c')
         .text('ALTAYAR VIP', 50, 50, { align: 'center' });
-      
+
       doc.fontSize(18)
         .font('Helvetica-Bold')
         .fillColor('#000000')
         .text(membership.name || 'Membership', 50, 100, { align: 'center' });
-      
+
       let yPos = 150;
       doc.fontSize(14)
         .font('Helvetica-Bold')
         .fillColor('#1a4d8c')
         .text('Membership Information', 50, yPos);
-      
+
       yPos += 30;
       doc.fontSize(11)
         .font('Helvetica')
         .fillColor('#000000');
-      
+
       if (membership.description) {
         doc.text('Description:', 50, yPos);
         yPos += 20;
         doc.text(membership.description, 50, yPos, { width: 495 });
         yPos += 40;
       }
-      
+
       if (cleanTier) {
         doc.text(`Tier: ${cleanTier}`, 50, yPos);
         yPos += 20;
       }
-      
+
       if (membership.price) {
         doc.text(`Price: ${membership.price} EGP`, 50, yPos);
         yPos += 20;
       }
-      
+
       if (membership.duration_days) {
         doc.text(`Duration: ${membership.duration_days} days`, 50, yPos);
         yPos += 20;
       }
-      
+
       if (membership.benefits && Array.isArray(membership.benefits) && membership.benefits.length > 0) {
         yPos += 20;
         doc.font('Helvetica-Bold')
@@ -919,26 +991,26 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
           yPos += 20;
         });
       }
-      
+
       // Footer
       const pageHeight = doc.page.height;
       doc.fontSize(9)
         .font('Helvetica')
         .fillColor('#666666')
         .text('© ALTAYAR VIP - Premium Membership Program', 50, pageHeight - 40, { align: 'center' });
-      
+
       doc.end();
-      
+
       // Wait for file to be written
       await new Promise((resolve, reject) => {
         writeStream.on('finish', resolve);
         writeStream.on('error', reject);
       });
-      
+
       // Verify file was created
       await fs.access(pdfFilePath);
       pdfPath = pdfFilePath;
-      
+
       // Update membership with PDF URL
       try {
         const relativePath = `memberships/${pdfFilename}`;
@@ -949,7 +1021,7 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
       } catch (updateError) {
         console.warn('⚠️ [Membership PDF Download] Could not update membership pdf_url:', updateError.message);
       }
-      
+
     } catch (generateError) {
       console.error('❌ [Membership PDF Download] Error generating PDF:', generateError);
       return res.status(500).json({
@@ -959,7 +1031,7 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
       });
     }
   }
-  
+
   if (!pdfPath) {
     console.error(`❌ [Membership PDF Download] PDF not found and could not generate for membership ID: ${id}, Name: "${membership.name}", Tier: "${cleanTier}"`);
     return res.status(404).json({
@@ -967,7 +1039,7 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
       message: 'PDF file not available for this membership and could not be generated'
     });
   }
-  
+
   console.log(`✅ [Membership PDF Download] Successfully found PDF: ${pdfPath}`);
 
   // Track the download
@@ -984,22 +1056,22 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
       console.log('⚠️ [DOWNLOAD TRACKING] Could not track PDF download:', trackError.message);
     }
   }
-  
+
   try {
     // Check if file exists
     await fs.access(pdfPath);
-    
+
     // Generate safe filename for Content-Disposition header
     const filename = `${membership.name || 'membership'}_membership.pdf`;
     const contentDisposition = encodeContentDisposition(filename, 'attachment');
-    
+
     // Set CORS headers for cross-origin requests (React Native, web browsers)
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, Accept-Ranges');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, Content-Length, Content-Range, Accept-Ranges');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    
+
     // Set headers for PDF download (attachment)
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', contentDisposition);
@@ -1008,7 +1080,7 @@ const downloadMembershipPDF = asyncHandler(async (req, res) => {
     res.setHeader('Expires', '0');
     res.setHeader('Accept-Ranges', 'bytes'); // Support range requests for partial content
     res.setHeader('X-Content-Type-Options', 'nosniff'); // Security header
-    
+
     // Send the file
     res.sendFile(pdfPath);
   } catch (error) {
@@ -1081,10 +1153,10 @@ const getMembershipCard = asyncHandler(async (req, res) => {
     }
 
     // Safely extract user name
-    const userName = user.name || 
+    const userName = user.name ||
       (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : '') ||
-      user.first_name || 
-      user.last_name || 
+      user.first_name ||
+      user.last_name ||
       'User';
 
     // If user doesn't have membership, return 200 with empty data instead of 404
@@ -1109,8 +1181,8 @@ const getMembershipCard = asyncHandler(async (req, res) => {
     // Safely extract membership data
     const membership = user.membership || {};
     const membershipName = membership.name || membership.membership_type || 'Standard';
-    const membershipBenefits = Array.isArray(membership.benefits) 
-      ? membership.benefits 
+    const membershipBenefits = Array.isArray(membership.benefits)
+      ? membership.benefits
       : (membership.benefits ? JSON.parse(membership.benefits) : []);
 
     const membershipCard = {
@@ -1188,7 +1260,7 @@ const subscribeToMembership = asyncHandler(async (req, res) => {
     const pdfBuffer = await generateMembershipCardPDF(membership, updatedUser);
     const filename = `membership_${userId}_${Date.now()}.pdf`;
     pdfUrl = await saveMembershipPDF(pdfBuffer, filename);
-    
+
     // Update membership with PDF URL if not exists
     if (!membership.pdf_url) {
       await Membership.query()
@@ -1210,7 +1282,7 @@ const subscribeToMembership = asyncHandler(async (req, res) => {
     description: `Subscription to ${membership.name}`,
     reference_id: membershipId.toString(), // Store membership ID for easy lookup
     status: 'completed'
-    });
+  });
 
   // Track the subscription
   await DownloadTracking.query().insert({
@@ -1281,14 +1353,14 @@ const getMembershipBookings = asyncHandler(async (req, res) => {
   // Search by reference_id (primary method) and payment_details JSON field (fallback)
   const transactions = await Transaction.query()
     .where('type', 'membership_purchase')
-    .where(function() {
+    .where(function () {
       // Primary: Check reference_id field (most reliable)
       this.where('reference_id', id.toString())
         // Fallback: Check payment_details JSON field if it contains membership info
         // Handle NULL payment_details safely
-        .orWhere(function() {
+        .orWhere(function () {
           this.whereNotNull('payment_details')
-            .andWhere(function() {
+            .andWhere(function () {
               this.whereRaw(`payment_details::text LIKE ?`, [`%"membership_id":${id}%`])
                 .orWhereRaw(`payment_details::text LIKE ?`, [`%"membershipId":${id}%`])
                 .orWhereRaw(`payment_details::text LIKE ?`, [`%"membership_id":"${id}"%`])
@@ -1329,8 +1401,8 @@ const getMembershipBookings = asyncHandler(async (req, res) => {
         userEmail: b.user?.email || '',
         status: b.status,
         // CRITICAL FIX: Ensure totalPrice is always a number, not a string
-        totalPrice: typeof b.total_price === 'string' 
-          ? parseFloat(b.total_price) || 0 
+        totalPrice: typeof b.total_price === 'string'
+          ? parseFloat(b.total_price) || 0
           : (typeof b.total_price === 'number' ? b.total_price : 0),
         bookingType: b.booking_type,
         createdAt: b.created_at,
@@ -1341,8 +1413,8 @@ const getMembershipBookings = asyncHandler(async (req, res) => {
         userName: t.user?.name || 'Unknown',
         userEmail: t.user?.email || '',
         // CRITICAL FIX: Ensure amount is always a number, not a string
-        amount: typeof t.amount === 'string' 
-          ? parseFloat(t.amount) || 0 
+        amount: typeof t.amount === 'string'
+          ? parseFloat(t.amount) || 0
           : (typeof t.amount === 'number' ? t.amount : 0),
         status: t.status,
         createdAt: t.created_at,
@@ -1354,8 +1426,8 @@ const getMembershipBookings = asyncHandler(async (req, res) => {
         userEmail: b.user?.email || '',
         status: b.status,
         // CRITICAL FIX: Ensure totalPrice is always a number, not a string
-        totalPrice: typeof b.total_price === 'string' 
-          ? parseFloat(b.total_price) || 0 
+        totalPrice: typeof b.total_price === 'string'
+          ? parseFloat(b.total_price) || 0
           : (typeof b.total_price === 'number' ? b.total_price : 0),
         bookingType: b.booking_type,
         createdAt: b.created_at,

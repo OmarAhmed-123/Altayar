@@ -87,73 +87,92 @@ const findAvailableSupportStaff = async () => {
  * @access Private
  */
 exports.startBotChat = asyncHandler(async (req, res) => {
-    const currentUserId = req.user.id;
-    const botUser = await getBotUser();
+    try {
+        const currentUserId = req.user?.id;
 
-    if (!botUser?.id) {
-        res.status(404);
-        throw new Error('Bot user is not available at the moment.');
-    }
-
-    const participantIds = [currentUserId, botUser.id];
-
-    let botChat = await Chat.query()
-        .where('is_group_chat', false)
-        .whereRaw('? = ANY(participants)', [currentUserId])
-        .whereRaw('? = ANY(participants)', [botUser.id])
-        .withGraphFetched('[participants(selectUserInfo), latestMessage.sender(selectUserInfo)]')
-        .modifiers(selectUserInfoModifier)
-        .first();
-
-    if (!botChat) {
-        const createdChat = await Chat.query().insert({
-            chat_name: botUser.name || 'دعم الطيار VIP',
-            is_group_chat: false,
-            participants: toParticipantsArray(participantIds),
-        });
-
-        for (const participantId of participantIds) {
-            await db('chat_participants')
-                .insert({
-                    chat_id: createdChat.id,
-                    user_id: participantId,
-                })
-                .onConflict(['chat_id', 'user_id'])
-                .ignore();
+        if (!currentUserId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
         }
 
-        await ensureBotIntroMessage(createdChat.id, botUser.id);
+        const botUser = await getBotUser();
 
-        botChat = await Chat.query()
-            .findById(createdChat.id)
+        if (!botUser?.id) {
+            return res.status(503).json({
+                success: false,
+                message: 'Bot user is not available at the moment.'
+            });
+        }
+
+        const participantIds = [currentUserId, botUser.id];
+
+        let botChat = await Chat.query()
+            .where('is_group_chat', false)
+            .whereRaw('? = ANY(participants)', [currentUserId])
+            .whereRaw('? = ANY(participants)', [botUser.id])
             .withGraphFetched('[participants(selectUserInfo), latestMessage.sender(selectUserInfo)]')
-            .modifiers(selectUserInfoModifier);
-    } else if (!botChat.latestMessage) {
-        await ensureBotIntroMessage(botChat.id, botUser.id);
-        botChat = await Chat.query()
-            .findById(botChat.id)
-            .withGraphFetched('[participants(selectUserInfo), latestMessage.sender(selectUserInfo)]')
-            .modifiers(selectUserInfoModifier);
-    } else {
-        await Chat.query().findById(botChat.id).patch({ updated_at: new Date() });
+            .modifiers(selectUserInfoModifier)
+            .first();
+
+        if (!botChat) {
+            const createdChat = await Chat.query().insert({
+                chat_name: botUser.name || 'دعم الطيار VIP',
+                is_group_chat: false,
+                participants: toParticipantsArray(participantIds),
+            });
+
+            for (const participantId of participantIds) {
+                await db('chat_participants')
+                    .insert({
+                        chat_id: createdChat.id,
+                        user_id: participantId,
+                    })
+                    .onConflict(['chat_id', 'user_id'])
+                    .ignore();
+            }
+
+            await ensureBotIntroMessage(createdChat.id, botUser.id);
+
+            botChat = await Chat.query()
+                .findById(createdChat.id)
+                .withGraphFetched('[participants(selectUserInfo), latestMessage.sender(selectUserInfo)]')
+                .modifiers(selectUserInfoModifier);
+        } else if (!botChat.latestMessage) {
+            await ensureBotIntroMessage(botChat.id, botUser.id);
+            botChat = await Chat.query()
+                .findById(botChat.id)
+                .withGraphFetched('[participants(selectUserInfo), latestMessage.sender(selectUserInfo)]')
+                .modifiers(selectUserInfoModifier);
+        } else {
+            await Chat.query().findById(botChat.id).patch({ updated_at: new Date() });
+        }
+
+        const unreadCount = await Message.query()
+            .where('chat_id', botChat.id)
+            .where('sender_id', '!=', currentUserId)
+            .whereRaw(`NOT (read_by::jsonb @> '["${currentUserId}"]'::jsonb)`)
+            .resultSize();
+
+        res.json({
+            ...botChat,
+            unread_count: unreadCount || 0,
+            bot_user: {
+                id: botUser.id,
+                name: botUser.name || 'دعم الطيار VIP',
+                email: botUser.email || BOT_EMAIL,
+                profile_picture_url: botUser.profile_picture_url || null,
+            },
+        });
+    } catch (error) {
+        console.error('[Chat] startBotChat error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to start bot chat',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
-
-    const unreadCount = await Message.query()
-        .where('chat_id', botChat.id)
-        .where('sender_id', '!=', currentUserId)
-        .whereRaw(`NOT (read_by::jsonb @> '["${currentUserId}"]'::jsonb)`)
-        .resultSize();
-
-    res.json({
-        ...botChat,
-        unread_count: unreadCount || 0,
-        bot_user: {
-            id: botUser.id,
-            name: botUser.name || 'دعم الطيار VIP',
-            email: botUser.email || BOT_EMAIL,
-            profile_picture_url: botUser.profile_picture_url || null,
-        },
-    });
 });
 
 /**
@@ -228,7 +247,7 @@ exports.accessChat = asyncHandler(async (req, res) => {
     if (isChat) {
         // Update chat timestamp
         await Chat.query().findById(isChat.id).patch({ updated_at: new Date() });
-        
+
         // Ensure bot intro exists for bot chats without messages
         if (targetUser?.email?.toLowerCase() === BOT_EMAIL && !isChat.latestMessage) {
             try {
@@ -243,7 +262,7 @@ exports.accessChat = asyncHandler(async (req, res) => {
                 console.error('[Chat] Bot intro resend error:', introError);
             }
         }
-        
+
         // Get unread count
         const unreadCount = await Message.query()
             .where('chat_id', isChat.id)
@@ -265,7 +284,7 @@ exports.accessChat = asyncHandler(async (req, res) => {
 
         try {
             const createdChat = await Chat.query().insert(chatData);
-            
+
             // Insert participants into chat_participants table
             for (const participantId of chatUsers) {
                 await db('chat_participants').insert({
@@ -328,8 +347,15 @@ exports.accessChat = asyncHandler(async (req, res) => {
  */
 exports.fetchChats = asyncHandler(async (req, res) => {
     try {
-        const currentUserId = req.user.id;
-        
+        const currentUserId = req.user?.id;
+
+        if (!currentUserId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
+
         // Get all chats where user is a participant
         const results = await Chat.query()
             .whereRaw('? = ANY(participants)', [currentUserId])
@@ -352,10 +378,10 @@ exports.fetchChats = asyncHandler(async (req, res) => {
 
             // Get other participant (not current user)
             const otherParticipant = chat.participants?.find(p => p.id !== currentUserId);
-            
+
             // CRITICAL FIX: Use other participant's name as chat name instead of "محادثة"
             const chatName = otherParticipant?.name || chat.chat_name || 'محادثة';
-            
+
             return {
                 ...chat,
                 chat_name: chatName, // Override chat_name with participant's name
@@ -367,8 +393,11 @@ exports.fetchChats = asyncHandler(async (req, res) => {
         res.status(200).json(chatsWithUnread);
     } catch (error) {
         console.error('[Chat] Fetch chats error:', error);
-        res.status(400);
-        throw new Error(error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch chats',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
 });
 
@@ -381,31 +410,31 @@ exports.getAllUsersForChat = asyncHandler(async (req, res) => {
     try {
         const currentUserId = req.user.id;
         const currentUser = await User.query().findById(currentUserId);
-        
+
         // Staff roles that can chat with customers
         const STAFF_ROLES = ['super_admin', 'admin', 'sales', 'reservations', 'accountant', 'agent', 'hr', 'data_entry'];
-        
+
         let users;
-        
+
         // If current user is a customer, show only staff members (not other customers)
         if (currentUser.role === 'customer') {
             users = await User.query()
                 .whereIn('role', STAFF_ROLES)
-            .whereNot('id', currentUserId)
-            .select('id', 'name', 'email', 'role', 'profile_picture_url', 'last_seen')
-            .orderBy('name', 'asc');
+                .whereNot('id', currentUserId)
+                .select('id', 'name', 'email', 'role', 'profile_picture_url', 'last_seen')
+                .orderBy('name', 'asc');
         } else {
             // If current user is staff, show all staff + customers
             users = await User.query()
                 .whereNot('id', currentUserId)
-                .where(function() {
+                .where(function () {
                     this.whereIn('role', STAFF_ROLES).orWhere('role', 'customer');
                 })
                 .select('id', 'name', 'email', 'role', 'profile_picture_url', 'last_seen')
                 .orderByRaw('CASE WHEN role IN (?) THEN 0 ELSE 1 END', [STAFF_ROLES])
                 .orderBy('name', 'asc');
         }
-        
+
         // Ensure bot user is always available for customers
         try {
             const botUser = await getBotUser();
@@ -422,7 +451,7 @@ exports.getAllUsersForChat = asyncHandler(async (req, res) => {
         } catch (botError) {
             console.error('[Chat] Failed to ensure bot user exists:', botError);
         }
-        
+
         // Calculate online status (within last 5 minutes)
         const usersWithStatus = users.map(user => {
             let isOnline = false;
@@ -432,14 +461,14 @@ exports.getAllUsersForChat = asyncHandler(async (req, res) => {
                 const diffMs = now.getTime() - lastSeenDate.getTime();
                 isOnline = diffMs < 5 * 60 * 1000; // 5 minutes
             }
-            
+
             return {
                 ...user,
                 isOnline,
                 chatCode: `USER_${user.id}`
             };
         });
-        
+
         res.status(200).json(usersWithStatus);
     } catch (error) {
         console.error('[Chat] Get users error:', error);
@@ -474,7 +503,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     const chat = await Chat.query()
         .findById(chatId)
         .withGraphFetched('participants');
-    
+
     if (!chat) {
         return res.status(404).json({
             success: false,
@@ -495,17 +524,17 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     let fileName = null;
     let fileType = null;
     let fileSize = null;
-    
+
     if (req.file) {
         const protocol = req.get('X-Forwarded-Proto') || req.protocol || 'http';
         let host = req.get('host');
-        
+
         // Handle localhost/127.0.0.1 for development
         if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
             const os = require('os');
             const networkInterfaces = os.networkInterfaces();
             let serverIP = '192.168.1.2';
-            
+
             Object.keys(networkInterfaces).forEach((interfaceName) => {
                 networkInterfaces[interfaceName].forEach((iface) => {
                     if (iface.family === 'IPv4' && !iface.internal) {
@@ -517,10 +546,10 @@ exports.sendMessage = asyncHandler(async (req, res) => {
                     }
                 });
             });
-            
+
             host = `${serverIP}:${process.env.PORT || 5000}`;
         }
-        
+
         const relativePath = req.file.path.replace(/\\/g, '/').split('uploads/')[1];
         fileUrl = `${protocol}://${host}/uploads/${relativePath}`;
         fileName = req.file.originalname;
@@ -533,7 +562,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         content: content || (req.file ? `تم إرسال ملف: ${fileName}` : ''),
         chat_id: chatId,
         read_by: JSON.stringify([req.user.id]), // Sender has read their own message
-        ...(fileUrl && { 
+        ...(fileUrl && {
             attachment_url: fileUrl,
             attachment_name: fileName,
             attachment_type: fileType,
@@ -554,7 +583,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
             });
 
         // Update chat latest message and timestamp
-        await Chat.query().findById(chatId).patch({ 
+        await Chat.query().findById(chatId).patch({
             latest_message_id: message.id,
             updated_at: new Date()
         });
@@ -562,7 +591,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         // CRITICAL FIX: Auto-trigger bot response if chat is with bot
         const botUser = await getBotUser();
         const isBotChat = chat.participants?.some(p => p.id === botUser?.id && p.id !== req.user.id);
-        
+
         if (isBotChat && content && content.trim().length > 0) {
             // Trigger bot response asynchronously (don't wait for it)
             setImmediate(async () => {
@@ -576,11 +605,11 @@ exports.sendMessage = asyncHandler(async (req, res) => {
                             content: botResponse,
                             read_by: JSON.stringify([botUser.id])
                         });
-                        await Chat.query().findById(chatId).patch({ 
+                        await Chat.query().findById(chatId).patch({
                             latest_message_id: botMessage.id,
                             updated_at: new Date()
                         });
-                        
+
                         // Emit bot message via Socket.IO
                         const io = global.io;
                         if (io) {
@@ -604,7 +633,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         // Auto-create support ticket if customer mentions keywords
         if (req.user.role === 'customer' && content) {
             const ticketKeywords = ['مشكلة', 'خطأ', 'عطل', 'لا يعمل', 'مساعدة', 'دعم', 'ticket', 'support', 'help', 'issue', 'problem'];
-            const hasTicketKeyword = ticketKeywords.some(keyword => 
+            const hasTicketKeyword = ticketKeywords.some(keyword =>
                 content.toLowerCase().includes(keyword.toLowerCase())
             );
 
@@ -622,7 +651,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
 
                         await SupportTicket.query().insert({
                             user_id: req.user.id,
-                    chat_id: chatId,
+                            chat_id: chatId,
                             ticket_number: ticketNumber,
                             subject: 'طلب دعم فني من المحادثة',
                             description: `تم إنشاء تذكرة تلقائياً من المحادثة. الرسالة: ${content.substring(0, 200)}`,
@@ -639,7 +668,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
                             read_by: JSON.stringify([supportStaff?.id || (await getBotUser()).id])
                         });
 
-                        await Chat.query().findById(chatId).patch({ 
+                        await Chat.query().findById(chatId).patch({
                             latest_message_id: ticketMessage.id,
                             updated_at: new Date()
                         });
@@ -716,12 +745,12 @@ exports.allMessages = asyncHandler(async (req, res) => {
         const currentUserId = req.user.id;
         const chatId = req.params.chatId;
         const { page = 1, limit = 50 } = req.query;
-        
+
         // Verify user is participant
         const chat = await Chat.query()
             .findById(chatId)
             .withGraphFetched('participants');
-        
+
         if (!chat) {
             return res.status(404).json({
                 success: false,
@@ -736,7 +765,7 @@ exports.allMessages = asyncHandler(async (req, res) => {
                 message: 'Not authorized to view messages in this chat'
             });
         }
-        
+
         // Get messages with pagination
         const offset = (parseInt(page) - 1) * parseInt(limit);
         const messages = await Message.query()
@@ -753,7 +782,7 @@ exports.allMessages = asyncHandler(async (req, res) => {
 
         // Reverse to show oldest first
         const reversedMessages = messages.reverse();
-        
+
         // Mark messages as read for current user (except their own messages)
         const unreadMessages = reversedMessages.filter(msg => {
             let readBy = msg.read_by;
@@ -766,7 +795,7 @@ exports.allMessages = asyncHandler(async (req, res) => {
             }
             return msg.sender_id !== currentUserId && (!Array.isArray(readBy) || !readBy.includes(currentUserId));
         });
-        
+
         if (unreadMessages.length > 0) {
             for (const msg of unreadMessages) {
                 let readBy = msg.read_by;
@@ -802,7 +831,7 @@ exports.allMessages = asyncHandler(async (req, res) => {
                 });
             }
         }
-        
+
         // Add isRead flag for each message
         const messagesWithReadStatus = reversedMessages.map(msg => {
             let readBy = msg.read_by;
@@ -823,7 +852,7 @@ exports.allMessages = asyncHandler(async (req, res) => {
                 isOwn: msg.sender_id === currentUserId
             };
         });
-        
+
         res.json({
             success: true,
             data: messagesWithReadStatus,
@@ -854,7 +883,7 @@ exports.markMessagesAsRead = asyncHandler(async (req, res) => {
         const chat = await Chat.query()
             .findById(chatId)
             .withGraphFetched('participants');
-        
+
         if (!chat) {
             return res.status(404).json({
                 success: false,
@@ -995,11 +1024,11 @@ exports.handleSocketConnection = (socket, io) => {
     socket.on('setup', async (userData) => {
         try {
             const targetUserId = userId || userData?.id;
-            
+
             if (targetUserId) {
                 socket.join(`user_${targetUserId}`);
                 socket.emit('connected');
-                
+
                 // Update user last_seen
                 try {
                     await User.query()
@@ -1008,10 +1037,10 @@ exports.handleSocketConnection = (socket, io) => {
                 } catch (error) {
                     console.error('[Socket.IO] Update last_seen error:', error);
                 }
-                
+
                 // Broadcast user online status
                 socket.broadcast.emit('user online', { userId: targetUserId });
-                
+
                 console.log(`[Socket.IO] User ${targetUserId} joined personal room: user_${targetUserId}`);
             }
         } catch (error) {
@@ -1035,10 +1064,10 @@ exports.handleSocketConnection = (socket, io) => {
     socket.on('typing', (data) => {
         const { chatId, userId: typingUserId } = data;
         const key = `${chatId}_${typingUserId}`;
-        
+
         // Store typing user
         typingUsers.set(key, Date.now());
-        
+
         // Emit to other participants
         socket.to(`chat_${chatId}`).emit('typing', {
             chatId,
@@ -1061,7 +1090,7 @@ exports.handleSocketConnection = (socket, io) => {
         const { chatId, userId: typingUserId } = data;
         const key = `${chatId}_${typingUserId || userId}`;
         typingUsers.delete(key);
-        
+
         socket.to(`chat_${chatId}`).emit('stop typing', {
             chatId,
             userId: typingUserId || userId
@@ -1081,7 +1110,7 @@ exports.handleSocketConnection = (socket, io) => {
             // Emit the received message to all other users in the chat
             chat.participants.forEach((user) => {
                 if (user.id == newMessageReceived.sender.id) return;
-                
+
                 io.to(`user_${user.id}`).emit('message received', newMessageReceived);
             });
         } catch (error) {
@@ -1098,9 +1127,9 @@ exports.handleSocketConnection = (socket, io) => {
                     .findById(userId)
                     .patch({ last_seen: new Date() });
             }
-            
+
             // Broadcast user online status
-        socket.broadcast.emit('user online', { userId });
+            socket.broadcast.emit('user online', { userId });
         } catch (error) {
             console.error('[Socket.IO] User online error:', error);
         }
@@ -1109,7 +1138,7 @@ exports.handleSocketConnection = (socket, io) => {
     // Handle user disconnect
     socket.on('disconnect', async () => {
         console.log(`[Socket.IO] User disconnected: ${socket.id} (User ID: ${userId})`);
-        
+
         try {
             // Update last_seen
             if (userId) {
@@ -1120,10 +1149,10 @@ exports.handleSocketConnection = (socket, io) => {
         } catch (error) {
             console.error('[Socket.IO] Update last_seen on disconnect error:', error);
         }
-        
+
         // Broadcast user offline status
         socket.broadcast.emit('user offline', { userId });
-        
+
         // Clean up typing indicators
         for (const [key, value] of typingUsers.entries()) {
             if (key.includes(`_${userId}`)) {

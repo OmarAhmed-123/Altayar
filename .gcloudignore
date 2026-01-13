@@ -89,13 +89,15 @@ docker-compose.*.yml
 uploads/*
 !uploads/.gitkeep
 
-# Memberships directory (may contain large files)
-memberships/*
-!memberships/.gitkeep
+# IMPORTANT: Memberships directory - INCLUDE all PDFs for the membership features
+# DO NOT exclude these files - they are needed for membership PDF display
+# memberships/*
+# !memberships/.gitkeep
 
-# Assets directory (may contain large files)
-assets/*
-!assets/.gitkeep
+# Assets directory - fonts for PDF generation
+# Keep fonts for Arabic text support
+!assets/fonts/
+!assets/fonts/**
 
 # All markdown documentation files
 *.md

@@ -25,11 +25,14 @@ COPY . .
 # Verify critical files are present (for debugging in case of issues)
 RUN ls -la assets/fonts/static/ 2>/dev/null || echo "Note: Fonts will be checked at runtime"
 
-# Create necessary directories
-RUN mkdir -p uploads/profiles uploads/images uploads/documents uploads/vouchers uploads/memberships uploads/reels uploads/ads uploads/chat uploads/logos memberships assets/fonts
+# Verify memberships PDFs are present
+RUN echo "Checking memberships folder:" && ls -la memberships/ || echo "Note: memberships folder check"
 
-# Set proper permissions
-RUN chmod -R 755 uploads memberships assets
+# Create necessary directories (not including memberships - it's already copied)
+RUN mkdir -p uploads/profiles uploads/images uploads/documents uploads/vouchers uploads/memberships uploads/reels uploads/ads uploads/chat uploads/logos assets/fonts
+
+# Set proper permissions (memberships folder is already present from COPY)
+RUN chmod -R 755 uploads assets && chmod -R 755 memberships 2>/dev/null || true
 
 # Expose port (Cloud Run uses PORT env var)
 EXPOSE ${PORT:-8080}
