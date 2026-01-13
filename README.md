@@ -2,54 +2,53 @@
 
 Backend API for Altayar tourism app. Built with Express, PostgreSQL (Knex + Objection), JWT auth, and Socket.IO.
 
-## المتطلبات
+## Requirements
 - Node.js 20+
 - PostgreSQL 12+
 
-## الإعداد السريع
-1) انسخ ملف البيئة:
+## Quick Setup
+1) Copy the environment file:
 ```
 copy env.example .env
 ```
-عدل قيم قاعدة البيانات، `JWT_SECRET`، و `FRONTEND_URL` (استخدم عنوان تطبيق Flutter العام/المحلي).
+Edit the database values, `JWT_SECRET`, and `FRONTEND_URL` (use your Flutter app's public/local address).
 
-2) ثبّت الاعتمادات:
+2) Install dependencies:
 ```
 npm install
 ```
 
-3) أنشئ قاعدة البيانات وشغّل الـ migrations + seed:
+3) Create the database and run migrations + seed:
 ```
 npx knex migrate:latest
 npm run seed
 ```
 
-4) شغّل السيرفر:
+4) Start the server:
 ```
 npm run dev
 ```
-الخدمة تعمل افتراضياً على `http://localhost:5000/api`.
+The service runs by default on `http://localhost:5000/api`.
 
-## نقاط التحقق
+## Test Endpoints
 - Health: `GET /api/health`
 - Auth: `POST /api/auth/login`
 - Packages: `GET /api/packages`
 
-## تكامل الفرونت (Flutter)
-- القيمة الافتراضية في `lib/core/config/app_config.dart` هي `http://localhost:5000/api`.
-- على جهاز حقيقي استخدم IP الجهاز المضيف: مثال `http://192.168.1.4:5000/api`.
-- يمكنك تغييرها بتشغيل Flutter مع:
+## Frontend Integration (Flutter)
+- The default value in `lib/core/config/app_config.dart` is `http://localhost:5000/api`.
+- On a physical device, use the host machine's IP: e.g., `http://192.168.1.4:5000/api`.
+- You can change it by running Flutter with:
 ```
 flutter run --dart-define=API_BASE_URL=http://<host>:5000/api
 ```
-- الـ WebSockets تستخدم نفس الأصل (`/socket.io`) ويكفي تمرير توكن JWT في `auth.token`.
+- WebSockets use the same origin (`/socket.io`) and just need the JWT token in `auth.token`.
 
-## سكربتات مفيدة
+## Useful Scripts
 - `npm run migrate:latest` / `npm run migrate:rollback`
-- `npm run seed:database` لإعادة ملء البيانات التجريبية
-- `node scripts/createAdminUser.js` لإنشاء أدمن سريع
+- `npm run seed:database` to repopulate test data
+- `node scripts/createAdminUser.js` to quickly create an admin
 
-## ملاحظات
-- مجلدات المخرجات مثل `uploads/` و `memberships/` يتم تجاهلها في الـ Git.
-- قبل النشر، تأكد من فتح المنفذ 5000 للوصول من الموبايل، أو حدّث `API_BASE_URL` بالقيمة العامة.
-
+## Notes
+- Output folders like `uploads/` and `memberships/` are ignored in Git.
+- Before deployment, make sure to open port 5000 for mobile access, or update `API_BASE_URL` with the public value.
