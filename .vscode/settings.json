@@ -1,0 +1,23 @@
+{
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.gradle.enabled": true,
+  "java.import.gradle.wrapper.enabled": true,
+  "java.import.gradle.version": null,
+  "java.import.gradle.home": null,
+  "java.import.gradle.java.home": null,
+  "java.import.gradle.offline.enabled": false,
+  "java.import.gradle.arguments": "",
+  "java.import.gradle.jvmArguments": "",
+  "java.import.gradle.user.home": null,
+  "java.import.gradle.wrapper.checksums": {},
+  "java.compile.nullAnalysis.mode": "automatic",
+  "gradle.nestedProjects": true,
+  "gradle.autoDetect": "on",
+  "files.exclude": {
+    "**/.gradle": false,
+    "**/build": false
+  },
+  "java.import.gradle.initScripts": [],
+  "java.import.gradle.initScripts.enabled": false
+}
+

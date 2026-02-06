@@ -1,6 +1,19 @@
-pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+        // CRITICAL FIX: Add maven repository for Android support libraries
+        maven { url "https://maven.google.com" }
+    }
+    includeBuild("../node_modules/@react-native/gradle-plugin")
+}
+
 plugins { id("com.facebook.react.settings") }
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
 rootProject.name = 'Altayar82'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
+
+// React Native Vector Icons - Auto-linked via autolinkLibrariesFromCommand()
+// No manual linking needed in React Native 0.82+

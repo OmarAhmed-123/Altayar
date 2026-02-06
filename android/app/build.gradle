@@ -50,6 +50,12 @@ react {
     //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
     // hermesFlags = ["-O", "-output-source-map"]
 
+    /* New Architecture */
+    // CRITICAL: Disable New Architecture for react-native-video compatibility
+    // react-native-video (5.x) does not yet support Fabric/Turbo Modules
+    // This must be set to false until react-native-video officially supports New Architecture
+    newArchEnabled = false
+
     /* Autolinking */
     autolinkLibrariesWithApp()
 }
@@ -105,6 +111,35 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    
+    // CRITICAL FIX: Add configurations block to resolve dependency conflicts
+    configurations.all {
+        resolutionStrategy {
+            // Force use of androidx instead of com.android.support
+            force 'androidx.appcompat:appcompat:1.6.1'
+            force 'androidx.core:core:1.12.0'
+            force 'androidx.legacy:legacy-support-v4:1.0.0'
+            
+            // Replace com.android.support with androidx equivalents
+            eachDependency { details ->
+                if (details.requested.group == 'com.android.support') {
+                    if (details.requested.name.contains('appcompat')) {
+                        details.useTarget "androidx.appcompat:appcompat:1.6.1"
+                    } else if (details.requested.name.contains('support-v4')) {
+                        details.useTarget "androidx.legacy:legacy-support-v4:1.0.0"
+                    } else if (details.requested.name.contains('support-annotations')) {
+                        details.useTarget "androidx.annotation:annotation:1.7.0"
+                    } else if (details.requested.name.contains('support-core-utils')) {
+                        details.useTarget "androidx.legacy:legacy-support-core-utils:1.0.0"
+                    } else if (details.requested.name.contains('support-core-ui')) {
+                        details.useTarget "androidx.legacy:legacy-support-core-ui:1.0.0"
+                    } else if (details.requested.name.contains('support-fragment')) {
+                        details.useTarget "androidx.fragment:fragment:1.6.2"
+                    }
+                }
+            }
+        }
+    }
 }
 
 dependencies {
@@ -116,4 +151,51 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // React Native Vector Icons - Auto-linked via autolinkLibrariesWithApp()
+    // No manual dependency needed in React Native 0.82+
+}
+
+// ------------------------------------------------------------------------------------
+// Ensure codegen stub directories exist before CMake autolinking runs.
+// This prevents `add_subdirectory ... does not exist` errors during clean builds.
+// ------------------------------------------------------------------------------------
+def repoRoot = rootDir.parentFile
+def codegenModules = [
+        "@react-native-async-storage/async-storage",
+        "react-native-gesture-handler",
+        "react-native-image-picker",
+        "react-native-vector-icons",
+        "react-native-reanimated",
+        "react-native-safe-area-context",
+        "react-native-screens",
+        "react-native-svg",
+        "react-native-webview",
+        "react-native-worklets"
+]
+
+tasks.register("prepareCodegenStubs") {
+    doLast {
+        codegenModules.each { moduleName ->
+            File targetDir = new File(repoRoot, "node_modules/${moduleName}/android/build/generated/source/codegen/jni")
+            if (!targetDir.exists()) {
+                targetDir.mkdirs()
+            }
+            File keep = new File(targetDir, ".keep")
+            if (!keep.exists()) {
+                keep.text = "// placeholder for CMake autolinking\n"
+            }
+        }
+    }
+}
+
+// Make sure every native build (including clean variants) depends on the stub prep task
+tasks.configureEach { task ->
+    if (task.name.startsWith("externalNativeBuild")) {
+        task.dependsOn("prepareCodegenStubs")
+    }
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn("prepareCodegenStubs")
 }

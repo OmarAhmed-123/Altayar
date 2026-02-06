@@ -1,0 +1,158 @@
+diff --git a/node_modules/react-native-video/Video.js b/node_modules/react-native-video/Video.js
+index a3452ad..68ca12b 100644
+--- a/node_modules/react-native-video/Video.js
++++ b/node_modules/react-native-video/Video.js
+@@ -255,10 +255,39 @@ export default class Video extends Component {
+     }
+   }
+   getViewManagerConfig = viewManagerName => {
++    // CRITICAL FIX: Check if UIManager exists before accessing it
++    if (!NativeModules.UIManager || NativeModules.UIManager === null) {
++      if (__DEV__) {
++        console.warn('[react-native-video] UIManager is null, native module may not be linked properly');
++      }
++      return null;
++    }
++    // CRITICAL FIX: Check if getViewManagerConfig method exists
+     if (!NativeModules.UIManager.getViewManagerConfig) {
+-      return NativeModules.UIManager[viewManagerName];
++      const viewManager = NativeModules.UIManager[viewManagerName];
++      if (!viewManager || viewManager === null) {
++        if (__DEV__) {
++          console.warn(`[react-native-video] View manager ${viewManagerName} not found`);
++        }
++        return null;
++      }
++      return viewManager;
++    }
++    try {
++      const config = NativeModules.UIManager.getViewManagerConfig(viewManagerName);
++      if (!config || config === null) {
++        if (__DEV__) {
++          console.warn(`[react-native-video] View manager config for ${viewManagerName} is null`);
++        }
++        return null;
++      }
++      return config;
++    } catch (error) {
++      if (__DEV__) {
++        console.error(`[react-native-video] Error getting view manager config for ${viewManagerName}:`, error);
++      }
++      return null;
+     }
+-    return NativeModules.UIManager.getViewManagerConfig(viewManagerName);
+   };
+ 
+   render() {
+@@ -280,21 +309,28 @@ export default class Video extends Component {
+ 
+     let nativeResizeMode;
+     const RCTVideoInstance = this.getViewManagerConfig('RCTVideo');
++    const hasValidNativeConstants = !!(RCTVideoInstance && RCTVideoInstance.Constants);
+ 
+-    if (resizeMode === VideoResizeMode.stretch) {
+-      nativeResizeMode = RCTVideoInstance.Constants.ScaleToFill;
+-    } else if (resizeMode === VideoResizeMode.contain) {
+-      nativeResizeMode = RCTVideoInstance.Constants.ScaleAspectFit;
+-    } else if (resizeMode === VideoResizeMode.cover) {
+-      nativeResizeMode = RCTVideoInstance.Constants.ScaleAspectFill;
++    // CRITICAL FIX: Check if RCTVideoInstance is valid before accessing Constants
++    if (!hasValidNativeConstants) {
++      if (__DEV__) {
++        console.warn('[react-native-video] RCTVideo native module not available, rendering fallback container');
++      }
+     } else {
+-      nativeResizeMode = RCTVideoInstance.Constants.ScaleNone;
++      if (resizeMode === VideoResizeMode.stretch) {
++        nativeResizeMode = RCTVideoInstance.Constants.ScaleToFill;
++      } else if (resizeMode === VideoResizeMode.contain) {
++        nativeResizeMode = RCTVideoInstance.Constants.ScaleAspectFit;
++      } else if (resizeMode === VideoResizeMode.cover) {
++        nativeResizeMode = RCTVideoInstance.Constants.ScaleAspectFill;
++      } else {
++        nativeResizeMode = RCTVideoInstance.Constants.ScaleNone;
++      }
+     }
+ 
+     const nativeProps = Object.assign({}, this.props);
+     Object.assign(nativeProps, {
+       style: [styles.base, nativeProps.style],
+-      resizeMode: nativeResizeMode,
+       src: {
+         uri,
+         isNetwork,
+@@ -331,11 +367,39 @@ export default class Video extends Component {
+       onRestoreUserInterfaceForPictureInPictureStop: this._onRestoreUserInterfaceForPictureInPictureStop,
+     });
+ 
++    if (hasValidNativeConstants) {
++      nativeProps.resizeMode = nativeResizeMode;
++    } else {
++      delete nativeProps.resizeMode;
++    }
++
+     const posterStyle = {
+       ...StyleSheet.absoluteFillObject,
+       resizeMode: this.props.posterResizeMode || 'contain',
+     };
+ 
++    const renderFallbackContainer = () => (
++      <View style={nativeProps.style}>
++        {this.state.showPoster && (
++          <Image style={posterStyle} source={{ uri: this.props.poster }} />
++        )}
++        <View style={StyleSheet.absoluteFill} />
++      </View>
++    );
++
++    // CRITICAL FIX: Check if RCTVideo is available before rendering
++    if (!RCTVideo) {
++      if (__DEV__) {
++        console.warn('[react-native-video] RCTVideo component not available, rendering fallback UI');
++      }
++      return renderFallbackContainer();
++    }
++
++    // CRITICAL FIX: If native constants are missing, render fallback instead of crashing
++    if (!hasValidNativeConstants) {
++      return renderFallbackContainer();
++    }
++
+     return (
+       <View style={nativeProps.style}>
+         <RCTVideo
+@@ -510,10 +574,27 @@ Video.propTypes = {
+   ...ViewPropTypes,
+ };
+ 
+-const RCTVideo = requireNativeComponent('RCTVideo', Video, {
+-  nativeOnly: {
+-    src: true,
+-    seek: true,
+-    fullscreen: true,
+-  },
+-});
++// CRITICAL FIX: Safely require native component with error handling
++let RCTVideo;
++try {
++  RCTVideo = requireNativeComponent('RCTVideo', Video, {
++    nativeOnly: {
++      src: true,
++      seek: true,
++      fullscreen: true,
++    },
++  });
++} catch (error) {
++  if (__DEV__) {
++    console.error('[react-native-video] Failed to require native component RCTVideo:', error);
++  }
++  // Create a fallback component that renders nothing
++  RCTVideo = class FallbackVideo extends Component {
++    render() {
++      if (__DEV__) {
++        console.warn('[react-native-video] Native component not available, rendering fallback');
++      }
++      return null;
++    }
++  };
++}

@@ -10,11 +10,24 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        // CRITICAL FIX: Add maven repository for Android support libraries
+        maven { url "https://maven.google.com" }
     }
     dependencies {
-        classpath("com.android.tools.build:gradle")
+        classpath("com.android.tools.build:gradle:8.7.3")
         classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        // CRITICAL FIX: Add maven repository for Android support libraries
+        maven { url "https://maven.google.com" }
+        // CRITICAL FIX: Add jitpack for react-native-video dependencies
+        maven { url "https://www.jitpack.io" }
     }
 }
 

@@ -1,0 +1,11 @@
+# Local Gradle Properties - User-specific settings
+# This file is not committed to version control
+# Add your local Gradle settings here
+
+# CRITICAL FIX: Disable IDE init scripts to prevent missing file errors
+org.gradle.ide.initScripts.enabled=false
+org.gradle.ide.initScripts.ignoreMissing=true
+
+# CRITICAL FIX: Use local Gradle init script instead of IDE one
+org.gradle.initScripts=gradle/init.gradle
+
